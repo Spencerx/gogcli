@@ -33,3 +33,54 @@ func TestExtractCodeAndState(t *testing.T) {
 		t.Fatalf("unexpected: code=%q state=%q", code, state)
 	}
 }
+
+func TestAllServices(t *testing.T) {
+	svcs := AllServices()
+	if len(svcs) != 4 {
+		t.Fatalf("unexpected: %v", svcs)
+	}
+	seen := make(map[Service]bool)
+	for _, s := range svcs {
+		seen[s] = true
+	}
+	for _, want := range []Service{ServiceGmail, ServiceCalendar, ServiceDrive, ServiceContacts} {
+		if !seen[want] {
+			t.Fatalf("missing %q", want)
+		}
+	}
+}
+
+func TestScopesForServices_UnionSorted(t *testing.T) {
+	scopes, err := ScopesForServices([]Service{ServiceContacts, ServiceGmail, ServiceContacts})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(scopes) < 3 {
+		t.Fatalf("unexpected scopes: %v", scopes)
+	}
+	// Ensure stable sorting.
+	for i := 1; i < len(scopes); i++ {
+		if scopes[i-1] > scopes[i] {
+			t.Fatalf("not sorted: %v", scopes)
+		}
+	}
+	// Ensure expected scopes are included.
+	want := []string{
+		"https://mail.google.com/",
+		"https://www.googleapis.com/auth/contacts",
+		"https://www.googleapis.com/auth/contacts.other.readonly",
+		"https://www.googleapis.com/auth/directory.readonly",
+	}
+	for _, w := range want {
+		found := false
+		for _, s := range scopes {
+			if s == w {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing scope %q in %v", w, scopes)
+		}
+	}
+}
