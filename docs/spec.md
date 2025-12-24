@@ -105,6 +105,8 @@ Scope selection note:
 - Base config dir: `$(os.UserConfigDir())/gogcli/`
 - Files:
   - `credentials.json` (OAuth client id/secret)
+- State:
+  - `state/gmail-watch/<account>.json` (Gmail watch state)
 - Secrets:
   - refresh tokens in keyring
 
@@ -160,6 +162,8 @@ Environment:
 - `gog gmail drafts create --to a@b.com --subject S [--body B] [--body-html H] [--cc ...] [--bcc ...] [--reply-to <messageId>] [--reply-to-address addr] [--attach <file>...]`
 - `gog gmail drafts send <draftId>`
 - `gog gmail drafts delete <draftId>`
+- `gog gmail watch start|status|renew|stop|serve`
+- `gog gmail history --since <historyId>`
 - `gog tasks lists [--max N] [--page TOKEN]`
 - `gog tasks lists create <title>`
 - `gog tasks list <tasklistId> [--max N] [--page TOKEN]`

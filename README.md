@@ -106,6 +106,9 @@ Gmail:
 - `gog gmail labels list`
 - `gog gmail labels get INBOX --output=json` (includes counts)
 - `gog gmail send --to a@b.com --subject "Hi" --body "Plain fallback" --body-html "<p>Hello</p>"`
+- `gog gmail watch start --topic projects/<p>/topics/<t> --label INBOX`
+- `gog gmail watch serve --bind 127.0.0.1 --token <shared> --hook-url http://127.0.0.1:18789/hooks/agent`
+- `gog gmail history --since <historyId>`
 
 Contacts:
 

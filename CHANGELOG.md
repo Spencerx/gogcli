@@ -4,10 +4,11 @@
 
 ### Added
 
+- Gmail: watch + Pub/Sub push handler (`gog gmail watch start|status|renew|stop|serve`) with optional webhook forwarding, include-body, and max-bytes.
+- Gmail: history listing via `gog gmail history --since <historyId>`.
 - Gmail: HTML bodies for `gmail send` and `gmail drafts create` via `--body-html` (multipart/alternative when combined with `--body`, PR #16 — thanks @shanelindsay).
 - Gmail: `--reply-to-address` (sets `Reply-To` header, PR #16 — thanks @shanelindsay).
 - Tasks: manage tasklists and tasks (`lists`, `list`, `add`, `update`, `done`, `undo`, `delete`, `clear`, PR #10 — thanks @shanelindsay).
-
 ### Changed
 
 - Build: `make` builds `./bin/gog` by default (adds `build` target, PR #12 — thanks @advait).
