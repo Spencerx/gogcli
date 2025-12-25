@@ -1,9 +1,7 @@
-version: 2
-
-run:
-  timeout: 5m
+version: "2"
 
 linters:
+  default: none
   enable:
     - errcheck
     - govet
@@ -11,15 +9,25 @@ linters:
     - staticcheck
     - unused
 
-linters-settings:
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
 
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+      - linters:
+          - errcheck
+        text: "Error return value of `fmt\\.Fprint"
+      - linters:
+          - errcheck
+        text: "Error return value of .*.Close"
+      - linters:
+          - staticcheck
+        text: "QF1001"
