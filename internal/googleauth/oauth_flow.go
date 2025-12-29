@@ -205,10 +205,7 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 			return "", errors.New("no refresh token received; try again with --force-consent")
 		}
 		// Keep server running to show success screen; allow cancellation via Ctrl+C
-		select {
-		case <-time.After(postSuccessDisplaySeconds * time.Second):
-		case <-ctx.Done():
-		}
+		waitPostSuccess(ctx, postSuccessDisplaySeconds*time.Second)
 		_ = srv.Close()
 		return tok.RefreshToken, nil
 	case err := <-errCh:
@@ -283,4 +280,14 @@ func renderCancelledPage(w http.ResponseWriter) {
 		return
 	}
 	_ = tmpl.Execute(w, nil)
+}
+
+// waitPostSuccess waits for the specified duration or until the context is
+// cancelled (e.g., via Ctrl+C). This allows the success page to remain visible
+// while still supporting graceful early termination.
+func waitPostSuccess(ctx context.Context, d time.Duration) {
+	select {
+	case <-time.After(d):
+	case <-ctx.Done():
+	}
 }
