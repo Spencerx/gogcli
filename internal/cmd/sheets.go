@@ -154,11 +154,12 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	var values [][]interface{}
 
-	if strings.TrimSpace(c.ValuesJSON) != "" {
+	switch {
+	case strings.TrimSpace(c.ValuesJSON) != "":
 		if unmarshalErr := json.Unmarshal([]byte(c.ValuesJSON), &values); unmarshalErr != nil {
 			return fmt.Errorf("invalid JSON values: %w", unmarshalErr)
 		}
-	} else if len(c.Values) > 0 {
+	case len(c.Values) > 0:
 		// Parse comma-separated rows, pipe-separated cells
 		rawValues := strings.Join(c.Values, " ")
 		rows := strings.Split(rawValues, ",")
@@ -170,7 +171,7 @@ func (c *SheetsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			values = append(values, rowData)
 		}
-	} else {
+	default:
 		return fmt.Errorf("provide values as args or via --values-json")
 	}
 
@@ -235,11 +236,12 @@ func (c *SheetsAppendCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	var values [][]interface{}
 
-	if strings.TrimSpace(c.ValuesJSON) != "" {
+	switch {
+	case strings.TrimSpace(c.ValuesJSON) != "":
 		if unmarshalErr := json.Unmarshal([]byte(c.ValuesJSON), &values); unmarshalErr != nil {
 			return fmt.Errorf("invalid JSON values: %w", unmarshalErr)
 		}
-	} else if len(c.Values) > 0 {
+	case len(c.Values) > 0:
 		rawValues := strings.Join(c.Values, " ")
 		rows := strings.Split(rawValues, ",")
 		for _, row := range rows {
@@ -250,7 +252,7 @@ func (c *SheetsAppendCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			values = append(values, rowData)
 		}
-	} else {
+	default:
 		return fmt.Errorf("provide values as args or via --values-json")
 	}
 

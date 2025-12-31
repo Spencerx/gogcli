@@ -121,7 +121,7 @@ func downloadAttachmentToPath(
 		}
 	}
 
-	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(outPath), 0o700); err != nil {
 		return "", false, 0, err
 	}
 	if err := os.WriteFile(outPath, data, 0o600); err != nil {

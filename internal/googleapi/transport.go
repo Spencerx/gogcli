@@ -156,7 +156,7 @@ func (t *RetryTransport) calculateBackoff(attempt int, resp *http.Response) time
 	if jitterRange <= 0 {
 		return baseDelay
 	}
-	jitter := time.Duration(rand.Int64N(int64(jitterRange)))
+	jitter := time.Duration(rand.Int64N(int64(jitterRange))) //nolint:gosec // non-crypto jitter
 	return baseDelay + jitter
 }
 

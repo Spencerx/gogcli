@@ -45,7 +45,7 @@ func (c *AuthCredentialsCmd) Run(ctx context.Context) error {
 	if inPath == "-" {
 		b, err = io.ReadAll(os.Stdin)
 	} else {
-		b, err = os.ReadFile(inPath)
+		b, err = os.ReadFile(inPath) //nolint:gosec // user-provided path
 	}
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func (c *AuthTokensExportCmd) Run(ctx context.Context) error {
 		return err
 	}
 
-	if mkErr := os.MkdirAll(filepath.Dir(outPath), 0o755); mkErr != nil {
+	if mkErr := os.MkdirAll(filepath.Dir(outPath), 0o700); mkErr != nil {
 		return mkErr
 	}
 
@@ -173,7 +173,7 @@ func (c *AuthTokensExportCmd) Run(ctx context.Context) error {
 	if !c.Overwrite {
 		flags = os.O_WRONLY | os.O_CREATE | os.O_EXCL
 	}
-	f, openErr := os.OpenFile(outPath, flags, 0o600)
+	f, openErr := os.OpenFile(outPath, flags, 0o600) //nolint:gosec // user-provided path
 	if openErr != nil {
 		return openErr
 	}
@@ -230,7 +230,7 @@ func (c *AuthTokensImportCmd) Run(ctx context.Context) error {
 	if inPath == "-" {
 		b, err = io.ReadAll(os.Stdin)
 	} else {
-		b, err = os.ReadFile(inPath)
+		b, err = os.ReadFile(inPath) //nolint:gosec // user-provided path
 	}
 	if err != nil {
 		return err

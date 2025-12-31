@@ -445,13 +445,13 @@ func (c *CalendarFreeBusyCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
-func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, max int64, page, query string) error {
+func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, from, to string, maxResults int64, page, query string) error {
 	u := ui.FromContext(ctx)
 
 	call := svc.Events.List(calendarID).
 		TimeMin(from).
 		TimeMax(to).
-		MaxResults(max).
+		MaxResults(maxResults).
 		PageToken(page).
 		SingleEvents(true).
 		OrderBy("startTime")
@@ -490,7 +490,7 @@ type eventWithCalendar struct {
 	CalendarID string
 }
 
-func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, max int64, page, query string) error {
+func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to string, maxResults int64, page, query string) error {
 	u := ui.FromContext(ctx)
 
 	calResp, err := svc.CalendarList.List().Context(ctx).Do()
@@ -508,7 +508,7 @@ func listAllCalendarsEvents(ctx context.Context, svc *calendar.Service, from, to
 		events, err := svc.Events.List(c.Id).
 			TimeMin(from).
 			TimeMax(to).
-			MaxResults(max).
+			MaxResults(maxResults).
 			PageToken(page).
 			SingleEvents(true).
 			OrderBy("startTime").

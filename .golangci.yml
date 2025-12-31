@@ -4,20 +4,45 @@ linters:
   default: none
   enable:
     - bodyclose
+    - cyclop
+    - dupword
     - errcheck
     - errorlint
+    - gocritic
+    - gocyclo
+    - gosec
     - govet
     - ineffassign
     - makezero
     - misspell
     - nilerr
     - nilnil
+    - nolintlint
     - prealloc
+    - predeclared
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
     - staticcheck
+    - tparallel
     - unparam
     - unused
+    - wastedassign
+    - whitespace
 
   settings:
+    cyclop:
+      max-complexity: 50
+    gocyclo:
+      min-complexity: 50
+    revive:
+      rules:
+        - name: blank-imports
+        - name: empty-lines
+        - name: errorf
+        - name: import-shadowing
+        - name: range
+        - name: unnecessary-stmt
     govet:
       enable-all: true
       disable:
@@ -30,6 +55,9 @@ linters:
       - path: _test\.go
         linters:
           - errcheck
+          - cyclop
+          - gocyclo
+          - gosec
       - linters:
           - errcheck
         text: "Error return value of `fmt\\.Fprint"

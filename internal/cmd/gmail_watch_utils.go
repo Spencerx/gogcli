@@ -25,15 +25,15 @@ func parseDurationSeconds(raw string) (time.Duration, error) {
 	return time.ParseDuration(trimmed)
 }
 
-func truncateUTF8Bytes(s string, max int) (string, bool) {
-	if max <= 0 {
+func truncateUTF8Bytes(s string, maxBytes int) (string, bool) {
+	if maxBytes <= 0 {
 		return "", false
 	}
 	b := []byte(s)
-	if len(b) <= max {
+	if len(b) <= maxBytes {
 		return s, false
 	}
-	b = b[:max]
+	b = b[:maxBytes]
 	for !utf8.Valid(b) {
 		b = b[:len(b)-1]
 	}

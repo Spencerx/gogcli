@@ -156,6 +156,8 @@ func TestDriveExportMimeTypeForFormat(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := driveExportMimeTypeForFormat(tc.googleMime, tc.format)
 			if tc.wantErrFrag != "" {
 				if err == nil {

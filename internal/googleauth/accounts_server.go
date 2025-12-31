@@ -160,11 +160,9 @@ func (ms *ManageServer) handleListAccounts(w http.ResponseWriter, r *http.Reques
 
 	accounts := make([]AccountInfo, 0, len(tokens))
 	for i, t := range tokens {
-		isDefault := false
+		isDefault := i == 0 // First account is default if none set
 		if defaultEmail != "" {
 			isDefault = t.Email == defaultEmail
-		} else {
-			isDefault = i == 0 // First account is default if none set
 		}
 		accounts = append(accounts, AccountInfo{
 			Email:     t.Email,

@@ -308,7 +308,7 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("empty localPath")
 	}
 
-	f, err := os.Open(localPath)
+	f, err := os.Open(localPath) //nolint:gosec // user-provided path
 	if err != nil {
 		return err
 	}
@@ -774,7 +774,7 @@ func buildDriveListQuery(folderID string, userQuery string) string {
 		q = parent
 	}
 	if !strings.Contains(q, "trashed") {
-		q = q + " and trashed = false"
+		q += " and trashed = false"
 	}
 	return q
 }
@@ -880,7 +880,7 @@ func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File
 	)
 
 	if isGoogleDoc {
-		exportMimeType := ""
+		var exportMimeType string
 		if strings.TrimSpace(format) == "" {
 			exportMimeType = driveExportMimeType(meta.MimeType)
 		} else {
@@ -906,7 +906,7 @@ func downloadDriveFile(ctx context.Context, svc *drive.Service, meta *drive.File
 		return "", 0, fmt.Errorf("download failed: %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
-	f, err := os.Create(outPath)
+	f, err := os.Create(outPath) //nolint:gosec // user-provided path
 	if err != nil {
 		return "", 0, err
 	}

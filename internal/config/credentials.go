@@ -69,7 +69,7 @@ func ReadClientCredentials() (ClientCredentials, error) {
 	if err != nil {
 		return ClientCredentials{}, err
 	}
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // user-provided path
 	if err != nil {
 		if os.IsNotExist(err) {
 			return ClientCredentials{}, &CredentialsMissingError{Path: path, Cause: err}

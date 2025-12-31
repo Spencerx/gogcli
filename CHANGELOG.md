@@ -5,6 +5,8 @@
 - Gmail: `thread modify` subcommand + `thread get` split (#21) — thanks @alexknowshtml.
 - Auth: refreshed account manager + success UI (#20) — thanks @salmonumbrella.
 - CLI: migrate from Cobra to Kong (same commands/flags; help/validation wording may differ slightly).
+- DX: tighten golangci-lint rules and fix new findings.
+- Security: config/attachment/export dirs now created with 0700 permissions.
 
 ## 0.4.1 - 2025-12-28
 

@@ -36,7 +36,7 @@ type Token struct {
 	RefreshToken string    `json:"-"`
 }
 
-const keyringPasswordEnv = "GOG_KEYRING_PASSWORD"
+const keyringPasswordEnv = "GOG_KEYRING_PASSWORD" //nolint:gosec // env var name, not a credential
 
 func fileKeyringPasswordFuncFrom(password string, isTTY bool) keyring.PromptFunc {
 	if password != "" {

@@ -226,8 +226,8 @@ func (c *GmailURLCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{"urls": urls})
 	}
 	for _, id := range c.ThreadIDs {
-		url := fmt.Sprintf("https://mail.google.com/mail/?authuser=%s#all/%s", url.QueryEscape(account), id)
-		u.Out().Printf("%s\t%s", id, url)
+		threadURL := fmt.Sprintf("https://mail.google.com/mail/?authuser=%s#all/%s", url.QueryEscape(account), id)
+		u.Out().Printf("%s\t%s", id, threadURL)
 	}
 	return nil
 }

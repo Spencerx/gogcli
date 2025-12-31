@@ -128,6 +128,7 @@ func Authorize(ctx context.Context, opts AuthorizeOptions) (string, error) {
 	errCh := make(chan error, 1)
 
 	srv := &http.Server{
+		ReadHeaderTimeout: 5 * time.Second,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/oauth2/callback" {
 				http.NotFound(w, r)
