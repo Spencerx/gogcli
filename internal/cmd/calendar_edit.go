@@ -22,6 +22,8 @@ type CalendarCreateCmd struct {
 	Location              string   `name:"location" help:"Location"`
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
+	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated."`
+	Reminders             []string `name:"reminder" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5)."`
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11). Use 'gog calendar colors' to see available colors."`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`
 	Transparency          string   `name:"transparency" help:"Show as busy (opaque) or free (transparent). Aliases: busy, free"`
@@ -68,6 +70,10 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	reminders, err := buildReminders(c.Reminders)
+	if err != nil {
+		return err
+	}
 
 	svc, err := newCalendarService(ctx, account)
 	if err != nil {
@@ -81,6 +87,8 @@ func (c *CalendarCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Start:              buildEventDateTime(c.From, c.AllDay),
 		End:                buildEventDateTime(c.To, c.AllDay),
 		Attendees:          buildAttendees(c.Attendees),
+		Recurrence:         buildRecurrence(c.Recurrence),
+		Reminders:          reminders,
 		ColorId:            colorId,
 		Visibility:         visibility,
 		Transparency:       transparency,
@@ -136,6 +144,8 @@ type CalendarUpdateCmd struct {
 	Attendees             string   `name:"attendees" help:"Comma-separated attendee emails (replaces all; set empty to clear)"`
 	AddAttendee           string   `name:"add-attendee" help:"Comma-separated attendee emails to add (preserves existing attendees)"`
 	AllDay                bool     `name:"all-day" help:"All-day event (use date-only in --from/--to)"`
+	Recurrence            []string `name:"rrule" help:"Recurrence rules (e.g., 'RRULE:FREQ=MONTHLY;BYMONTHDAY=11'). Can be repeated. Set empty to clear."`
+	Reminders             []string `name:"reminder" help:"Custom reminders as method:duration (e.g., popup:30m, email:1d). Can be repeated (max 5). Set empty to clear."`
 	ColorId               string   `name:"event-color" help:"Event color ID (1-11, or empty to clear)"`
 	Visibility            string   `name:"visibility" help:"Event visibility: default, public, private, confidential"`
 	Transparency          string   `name:"transparency" help:"Show as busy (opaque) or free (transparent). Aliases: busy, free"`
@@ -275,6 +285,29 @@ func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Even
 		patch.Attendees = buildAttendees(c.Attendees)
 		changed = true
 	}
+	if flagProvided(kctx, "rrule") {
+		recurrence := buildRecurrence(c.Recurrence)
+		if recurrence == nil {
+			patch.Recurrence = []string{}
+			patch.ForceSendFields = append(patch.ForceSendFields, "Recurrence")
+		} else {
+			patch.Recurrence = recurrence
+		}
+		changed = true
+	}
+	if flagProvided(kctx, "reminder") {
+		reminders, err := buildReminders(c.Reminders)
+		if err != nil {
+			return nil, false, err
+		}
+		if reminders == nil {
+			patch.Reminders = &calendar.EventReminders{UseDefault: true}
+			patch.ForceSendFields = append(patch.ForceSendFields, "Reminders")
+		} else {
+			patch.Reminders = reminders
+		}
+		changed = true
+	}
 	if flagProvided(kctx, "event-color") {
 		colorId, err := validateColorId(c.ColorId)
 		if err != nil {
@@ -341,7 +374,18 @@ func applyUpdateScope(ctx context.Context, svc *calendar.Service, calendarID, ev
 			return "", nil, fmt.Errorf("event %s is not a recurring event", eventID)
 		}
 		parentRecurrence = parent.Recurrence
-		patch.Recurrence = parentRecurrence
+		recurrenceOverride := len(patch.Recurrence) > 0
+		if !recurrenceOverride {
+			for _, field := range patch.ForceSendFields {
+				if field == "Recurrence" {
+					recurrenceOverride = true
+					break
+				}
+			}
+		}
+		if !recurrenceOverride {
+			patch.Recurrence = parentRecurrence
+		}
 	}
 
 	if scope == scopeSingle || scope == scopeFuture {

@@ -15,6 +15,7 @@
 - DX: remove pnpm wrapper; use `make gog`.
 - DX: `make gogcli -- ...` passes args to the CLI; add `make gogcli-help` convenience target.
 - Calendar: `gog calendar update --add-attendee ...` adds attendees without replacing existing RSVP state (#24) — thanks @salmonumbrella.
+- Calendar: add `gog calendar create|update --rrule/--reminder` for recurrence rules and custom reminders (#34) — thanks @salmonumbrella.
 - Gmail: `gog gmail thread attachments` list/download attachments (#27) — thanks @salmonumbrella.
 - Gmail: `gog gmail thread get --full` shows complete bodies (default truncates) (#25) — thanks @salmonumbrella.
 - Gmail: email open tracking (`gog gmail send --track`, `gog gmail track ...`) via Cloudflare Worker backend (#38) — thanks @salmonumbrella.

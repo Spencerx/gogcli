@@ -181,6 +181,7 @@ func helpDescription() string {
 		configLine = configPath
 	}
 
+	var backendLine string
 	backendInfo, err := secrets.ResolveKeyringBackendInfo()
 	if err != nil {
 		backendLine := fmt.Sprintf("error: %v", err)

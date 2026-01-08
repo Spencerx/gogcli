@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +43,109 @@ func buildRecurrence(rules []string) []string {
 			out = append(out, r)
 		}
 	}
+	if len(out) == 0 {
+		return nil
+	}
 	return out
+}
+
+var durationRegex = regexp.MustCompile(`^(\d+)(w|d|h|m)?$`)
+
+func parseDuration(s string) (int64, error) {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return 0, fmt.Errorf("empty duration")
+	}
+
+	match := durationRegex.FindStringSubmatch(s)
+	if match == nil {
+		return 0, fmt.Errorf("invalid duration format: %q (expected e.g., 30, 30m, 1h, 3d, 1w)", s)
+	}
+
+	value, err := strconv.ParseInt(match[1], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration number: %q", match[1])
+	}
+
+	unit := match[2]
+	switch unit {
+	case "w":
+		value *= 7 * 24 * 60
+	case "d":
+		value *= 24 * 60
+	case "h":
+		value *= 60
+	case "m", "":
+	}
+
+	if value < 0 || value > 40320 {
+		return 0, fmt.Errorf("reminder duration must be 0-40320 minutes (got %d)", value)
+	}
+
+	return value, nil
+}
+
+func parseReminder(s string) (string, int64, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", 0, fmt.Errorf("empty reminder")
+	}
+
+	parts := strings.SplitN(s, ":", 2)
+	if len(parts) != 2 {
+		return "", 0, fmt.Errorf("invalid reminder format: %q (expected method:duration, e.g., popup:30m)", s)
+	}
+
+	method := strings.TrimSpace(strings.ToLower(parts[0]))
+	if method != "email" && method != "popup" {
+		return "", 0, fmt.Errorf("invalid reminder method: %q (expected 'email' or 'popup')", method)
+	}
+
+	minutes, err := parseDuration(parts[1])
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid reminder duration: %w", err)
+	}
+
+	return method, minutes, nil
+}
+
+//nolint:nilnil // nil return is intentional: nil means "use calendar defaults"
+func buildReminders(reminders []string) (*calendar.EventReminders, error) {
+	if len(reminders) == 0 {
+		return nil, nil
+	}
+
+	var filtered []string
+	for _, r := range reminders {
+		if strings.TrimSpace(r) != "" {
+			filtered = append(filtered, r)
+		}
+	}
+
+	if len(filtered) == 0 {
+		return nil, nil
+	}
+
+	if len(filtered) > 5 {
+		return nil, fmt.Errorf("maximum 5 reminders allowed (got %d)", len(filtered))
+	}
+
+	overrides := make([]*calendar.EventReminder, 0, len(filtered))
+	for _, r := range filtered {
+		method, minutes, err := parseReminder(r)
+		if err != nil {
+			return nil, err
+		}
+		overrides = append(overrides, &calendar.EventReminder{
+			Method:  method,
+			Minutes: minutes,
+		})
+	}
+
+	return &calendar.EventReminders{
+		UseDefault: false,
+		Overrides:  overrides,
+	}, nil
 }
 
 func buildAttachments(urls []string) []*calendar.EventAttachment {
