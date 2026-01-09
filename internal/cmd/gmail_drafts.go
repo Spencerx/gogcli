@@ -281,68 +281,70 @@ type GmailDraftsCreateCmd struct {
 	From             string   `name:"from" help:"Send from this email address (must be a verified send-as alias)"`
 }
 
-func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
-	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
+type draftComposeInput struct {
+	To               string
+	Cc               string
+	Bcc              string
+	Subject          string
+	Body             string
+	BodyHTML         string
+	ReplyToMessageID string
+	ReplyTo          string
+	Attach           []string
+	From             string
+}
+
+func (c draftComposeInput) validate() error {
 	if strings.TrimSpace(c.To) == "" || strings.TrimSpace(c.Subject) == "" {
 		return usage("required: --to, --subject")
 	}
 	if strings.TrimSpace(c.Body) == "" && strings.TrimSpace(c.BodyHTML) == "" {
 		return usage("required: --body or --body-html")
 	}
+	return nil
+}
 
-	svc, err := newGmailService(ctx, account)
-	if err != nil {
-		return err
-	}
-
-	// Determine the From address
+func buildDraftMessage(ctx context.Context, svc *gmail.Service, account string, input draftComposeInput) (*gmail.Message, string, error) {
 	fromAddr := account
-	if strings.TrimSpace(c.From) != "" {
-		// Validate that this is a configured send-as alias
-		var sa *gmail.SendAs
-		sa, err = svc.Users.Settings.SendAs.Get("me", c.From).Context(ctx).Do()
+	if strings.TrimSpace(input.From) != "" {
+		sa, err := svc.Users.Settings.SendAs.Get("me", input.From).Context(ctx).Do()
 		if err != nil {
-			return fmt.Errorf("invalid --from address %q: %w", c.From, err)
+			return nil, "", fmt.Errorf("invalid --from address %q: %w", input.From, err)
 		}
 		if sa.VerificationStatus != gmailVerificationAccepted {
-			return fmt.Errorf("--from address %q is not verified (status: %s)", c.From, sa.VerificationStatus)
+			return nil, "", fmt.Errorf("--from address %q is not verified (status: %s)", input.From, sa.VerificationStatus)
 		}
-		fromAddr = c.From
-		// Include display name if set
+		fromAddr = input.From
 		if sa.DisplayName != "" {
-			fromAddr = sa.DisplayName + " <" + c.From + ">"
+			fromAddr = sa.DisplayName + " <" + input.From + ">"
 		}
 	}
 
-	inReplyTo, references, threadID, err := replyHeaders(ctx, svc, c.ReplyToMessageID)
+	inReplyTo, references, threadID, err := replyHeaders(ctx, svc, input.ReplyToMessageID)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 
-	atts := make([]mailAttachment, 0, len(c.Attach))
-	for _, p := range c.Attach {
+	atts := make([]mailAttachment, 0, len(input.Attach))
+	for _, p := range input.Attach {
 		atts = append(atts, mailAttachment{Path: p})
 	}
 
 	raw, err := buildRFC822(mailOptions{
 		From:        fromAddr,
-		To:          splitCSV(c.To),
-		Cc:          splitCSV(c.Cc),
-		Bcc:         splitCSV(c.Bcc),
-		ReplyTo:     c.ReplyTo,
-		Subject:     c.Subject,
-		Body:        c.Body,
-		BodyHTML:    c.BodyHTML,
+		To:          splitCSV(input.To),
+		Cc:          splitCSV(input.Cc),
+		Bcc:         splitCSV(input.Bcc),
+		ReplyTo:     input.ReplyTo,
+		Subject:     input.Subject,
+		Body:        input.Body,
+		BodyHTML:    input.BodyHTML,
 		InReplyTo:   inReplyTo,
 		References:  references,
 		Attachments: atts,
 	})
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 
 	msg := &gmail.Message{
@@ -352,10 +354,10 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		msg.ThreadId = threadID
 	}
 
-	draft, err := svc.Users.Drafts.Create("me", &gmail.Draft{Message: msg}).Do()
-	if err != nil {
-		return err
-	}
+	return msg, threadID, nil
+}
+
+func writeDraftResult(ctx context.Context, u *ui.UI, draft *gmail.Draft, threadID string) error {
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(os.Stdout, map[string]any{
 			"draftId":  draft.Id,
@@ -371,6 +373,46 @@ func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		u.Out().Printf("thread_id\t%s", threadID)
 	}
 	return nil
+}
+
+func (c *GmailDraftsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	input := draftComposeInput{
+		To:               c.To,
+		Cc:               c.Cc,
+		Bcc:              c.Bcc,
+		Subject:          c.Subject,
+		Body:             c.Body,
+		BodyHTML:         c.BodyHTML,
+		ReplyToMessageID: c.ReplyToMessageID,
+		ReplyTo:          c.ReplyTo,
+		Attach:           c.Attach,
+		From:             c.From,
+	}
+	if validateErr := input.validate(); validateErr != nil {
+		return validateErr
+	}
+
+	svc, err := newGmailService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	msg, threadID, err := buildDraftMessage(ctx, svc, account, input)
+	if err != nil {
+		return err
+	}
+
+	draft, err := svc.Users.Drafts.Create("me", &gmail.Draft{Message: msg}).Do()
+	if err != nil {
+		return err
+	}
+	return writeDraftResult(ctx, u, draft, threadID)
 }
 
 type GmailDraftsUpdateCmd struct {
@@ -397,11 +439,21 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 	if draftID == "" {
 		return usage("empty draftId")
 	}
-	if strings.TrimSpace(c.To) == "" || strings.TrimSpace(c.Subject) == "" {
-		return usage("required: --to, --subject")
+
+	input := draftComposeInput{
+		To:               c.To,
+		Cc:               c.Cc,
+		Bcc:              c.Bcc,
+		Subject:          c.Subject,
+		Body:             c.Body,
+		BodyHTML:         c.BodyHTML,
+		ReplyToMessageID: c.ReplyToMessageID,
+		ReplyTo:          c.ReplyTo,
+		Attach:           c.Attach,
+		From:             c.From,
 	}
-	if strings.TrimSpace(c.Body) == "" && strings.TrimSpace(c.BodyHTML) == "" {
-		return usage("required: --body or --body-html")
+	if validateErr := input.validate(); validateErr != nil {
+		return validateErr
 	}
 
 	svc, err := newGmailService(ctx, account)
@@ -409,74 +461,14 @@ func (c *GmailDraftsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return err
 	}
 
-	// Determine the From address.
-	fromAddr := account
-	if strings.TrimSpace(c.From) != "" {
-		var sa *gmail.SendAs
-		sa, err = svc.Users.Settings.SendAs.Get("me", c.From).Context(ctx).Do()
-		if err != nil {
-			return fmt.Errorf("invalid --from address %q: %w", c.From, err)
-		}
-		if sa.VerificationStatus != gmailVerificationAccepted {
-			return fmt.Errorf("--from address %q is not verified (status: %s)", c.From, sa.VerificationStatus)
-		}
-		fromAddr = c.From
-		if sa.DisplayName != "" {
-			fromAddr = sa.DisplayName + " <" + c.From + ">"
-		}
-	}
-
-	inReplyTo, references, threadID, err := replyHeaders(ctx, svc, c.ReplyToMessageID)
+	msg, threadID, err := buildDraftMessage(ctx, svc, account, input)
 	if err != nil {
 		return err
-	}
-
-	atts := make([]mailAttachment, 0, len(c.Attach))
-	for _, p := range c.Attach {
-		atts = append(atts, mailAttachment{Path: p})
-	}
-
-	raw, err := buildRFC822(mailOptions{
-		From:        fromAddr,
-		To:          splitCSV(c.To),
-		Cc:          splitCSV(c.Cc),
-		Bcc:         splitCSV(c.Bcc),
-		ReplyTo:     c.ReplyTo,
-		Subject:     c.Subject,
-		Body:        c.Body,
-		BodyHTML:    c.BodyHTML,
-		InReplyTo:   inReplyTo,
-		References:  references,
-		Attachments: atts,
-	})
-	if err != nil {
-		return err
-	}
-
-	msg := &gmail.Message{
-		Raw: base64.RawURLEncoding.EncodeToString(raw),
-	}
-	if threadID != "" {
-		msg.ThreadId = threadID
 	}
 
 	draft, err := svc.Users.Drafts.Update("me", draftID, &gmail.Draft{Id: draftID, Message: msg}).Do()
 	if err != nil {
 		return err
 	}
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(os.Stdout, map[string]any{
-			"draftId":  draft.Id,
-			"message":  draft.Message,
-			"threadId": threadID,
-		})
-	}
-	u.Out().Printf("draft_id\t%s", draft.Id)
-	if draft.Message != nil && draft.Message.Id != "" {
-		u.Out().Printf("message_id\t%s", draft.Message.Id)
-	}
-	if threadID != "" {
-		u.Out().Printf("thread_id\t%s", threadID)
-	}
-	return nil
+	return writeDraftResult(ctx, u, draft, threadID)
 }
