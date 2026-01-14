@@ -189,7 +189,9 @@ func TestScopesForServices_UnionSorted(t *testing.T) {
 	}
 	// Ensure expected scopes are included.
 	want := []string{
-		"https://mail.google.com/",
+		"https://www.googleapis.com/auth/gmail.modify",
+		"https://www.googleapis.com/auth/gmail.settings.basic",
+		"https://www.googleapis.com/auth/gmail.settings.sharing",
 		"https://www.googleapis.com/auth/contacts",
 		"https://www.googleapis.com/auth/contacts.other.readonly",
 		"https://www.googleapis.com/auth/directory.readonly",
@@ -241,6 +243,7 @@ func TestScopesForManageWithOptions_Readonly(t *testing.T) {
 
 	notWant := []string{
 		"https://mail.google.com/",
+		"https://www.googleapis.com/auth/gmail.modify",
 		"https://www.googleapis.com/auth/gmail.settings.basic",
 		"https://www.googleapis.com/auth/gmail.settings.sharing",
 		"https://www.googleapis.com/auth/drive",

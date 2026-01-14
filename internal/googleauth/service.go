@@ -71,7 +71,7 @@ var serviceOrder = []Service{
 var serviceInfoByService = map[Service]serviceInfo{
 	ServiceGmail: {
 		scopes: []string{
-			"https://mail.google.com/",
+			"https://www.googleapis.com/auth/gmail.modify",
 			"https://www.googleapis.com/auth/gmail.settings.basic",
 			"https://www.googleapis.com/auth/gmail.settings.sharing",
 		},
