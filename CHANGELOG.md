@@ -5,6 +5,7 @@
 ### Added
 
 - Gmail: `--body-file` for `send`, `drafts create`, and `drafts update` (use `-` for stdin) to send multi-line plain text.
+- Drive: `gog drive drives` lists shared drives (Team Drives). (#67) — thanks @pasogott.
 
 ### Changed
 

@@ -155,6 +155,7 @@ Flag aliases:
 - `gog drive permissions <fileId> [--max N] [--page TOKEN]`
 - `gog drive unshare <fileId> <permissionId>`
 - `gog drive url <fileIds...>`
+- `gog drive drives [--max N] [--page TOKEN] [--query Q]`
 - `gog calendar calendars`
 - `gog calendar acl <calendarId>`
 - `gog calendar events <calendarId> [--from RFC3339] [--to RFC3339] [--max N] [--page TOKEN] [--query Q]`

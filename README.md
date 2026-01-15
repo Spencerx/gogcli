@@ -586,6 +586,9 @@ gog drive permissions <fileId>
 gog drive share <fileId> --email user@example.com --role reader
 gog drive share <fileId> --email user@example.com --role writer
 gog drive unshare <fileId> --permission-id <permissionId>
+
+# Shared drives (Team Drives)
+gog drive drives --max 100
 ```
 
 ### Docs / Slides / Sheets

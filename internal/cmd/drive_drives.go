@@ -12,7 +12,7 @@ import (
 
 // DriveDrivesCmd lists all shared drives the user has access to.
 type DriveDrivesCmd struct {
-	Max   int64  `name:"max" aliases:"limit" help:"Max results" default:"100"`
+	Max   int64  `name:"max" aliases:"limit" help:"Max results (max allowed: 100)" default:"100"`
 	Page  string `name:"page" help:"Page token"`
 	Query string `name:"query" short:"q" help:"Search query for filtering shared drives"`
 }
@@ -34,11 +34,11 @@ func (c *DriveDrivesCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Fields("nextPageToken, drives(id, name, createdTime)").
 		Context(ctx)
 
-	if strings.TrimSpace(c.Page) != "" {
-		call = call.PageToken(c.Page)
+	if page := strings.TrimSpace(c.Page); page != "" {
+		call = call.PageToken(page)
 	}
-	if strings.TrimSpace(c.Query) != "" {
-		call = call.Q(c.Query)
+	if q := strings.TrimSpace(c.Query); q != "" {
+		call = call.Q(q)
 	}
 
 	resp, err := call.Do()

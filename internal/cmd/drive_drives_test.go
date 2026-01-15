@@ -176,8 +176,10 @@ func TestDriveDrivesCmd_WithQuery(t *testing.T) {
 	t.Cleanup(func() { newDriveService = origNew })
 
 	var capturedQuery string
+	var capturedPageToken string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedQuery = r.URL.Query().Get("q")
+		capturedPageToken = r.URL.Query().Get("pageToken")
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"drives": []map[string]any{
@@ -213,12 +215,15 @@ func TestDriveDrivesCmd_WithQuery(t *testing.T) {
 
 	_ = captureStdout(t, func() {
 		cmd := &DriveDrivesCmd{}
-		if execErr := runKong(t, cmd, []string{"--query", "name contains 'Eng'"}, ctx, flags); execErr != nil {
+		if execErr := runKong(t, cmd, []string{"--query", " name contains 'Eng' ", "--page", " tok "}, ctx, flags); execErr != nil {
 			t.Fatalf("execute: %v", execErr)
 		}
 	})
 
 	if capturedQuery != "name contains 'Eng'" {
 		t.Fatalf("expected query to be passed, got: %q", capturedQuery)
+	}
+	if capturedPageToken != "tok" {
+		t.Fatalf("expected page token to be passed, got: %q", capturedPageToken)
 	}
 }
