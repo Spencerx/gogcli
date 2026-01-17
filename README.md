@@ -1,6 +1,6 @@
 # 🧭 gogcli — Google in your terminal.
 
-Fast, script-friendly CLI for Gmail, Calendar, Classroom, Drive, Docs, Slides, Sheets, Contacts, Tasks, People, Groups (Workspace), and Keep (Workspace-only). JSON-first output, multiple accounts, and least-privilege auth built in.
+Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Slides, Sheets, Contacts, Tasks, People, Groups (Workspace), and Keep (Workspace-only). JSON-first output, multiple accounts, and least-privilege auth built in.
 
 ## Features
 
@@ -8,6 +8,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Classroom, Drive, Docs, Slides, S
 - **Email tracking** - track opens for `gog gmail send --track` with a small Cloudflare Worker backend
 - **Calendar** - list/create/update events, detect conflicts, manage invitations, check free/busy status, team calendars, propose new times, focus/OOO/working-location events, recurrence + reminders
 - **Classroom** - manage courses, roster, coursework/materials, submissions, announcements, topics, invitations, guardians, profiles
+- **Chat** - list spaces, read messages/threads, send messages and DMs (Workspace-only)
 - **Drive** - list/search/upload/download files, manage permissions/comments, organize folders, list shared drives
 - **Contacts** - search/create/update contacts, access Workspace directory/other contacts
 - **Tasks** - manage tasklists and tasks: get/create/add/update/done/undo/delete/clear, repeat schedules
@@ -66,6 +67,7 @@ Before adding an account, create OAuth2 credentials from Google Cloud Console:
 2. Enable the APIs you need:
    - Gmail API: https://console.cloud.google.com/apis/api/gmail.googleapis.com
    - Google Calendar API: https://console.cloud.google.com/apis/api/calendar-json.googleapis.com
+   - Google Chat API: https://console.cloud.google.com/apis/api/chat.googleapis.com
    - Google Drive API: https://console.cloud.google.com/apis/api/drive.googleapis.com
    - Google Classroom API: https://console.cloud.google.com/apis/api/classroom.googleapis.com
    - People API (Contacts): https://console.cloud.google.com/apis/api/people.googleapis.com
@@ -250,6 +252,7 @@ Service scope matrix (auto-generated; run `go run scripts/gen-auth-services-md.g
 | --- | --- | --- | --- | --- |
 | gmail | yes | Gmail API | `https://www.googleapis.com/auth/gmail.modify`<br>`https://www.googleapis.com/auth/gmail.settings.basic`<br>`https://www.googleapis.com/auth/gmail.settings.sharing` |  |
 | calendar | yes | Calendar API | `https://www.googleapis.com/auth/calendar` |  |
+| chat | yes | Chat API | `https://www.googleapis.com/auth/chat.spaces`<br>`https://www.googleapis.com/auth/chat.messages`<br>`https://www.googleapis.com/auth/chat.memberships`<br>`https://www.googleapis.com/auth/chat.users.readstate.readonly` |  |
 | classroom | yes | Classroom API | `https://www.googleapis.com/auth/classroom.courses`<br>`https://www.googleapis.com/auth/classroom.rosters`<br>`https://www.googleapis.com/auth/classroom.coursework.students`<br>`https://www.googleapis.com/auth/classroom.coursework.me`<br>`https://www.googleapis.com/auth/classroom.courseworkmaterials`<br>`https://www.googleapis.com/auth/classroom.announcements`<br>`https://www.googleapis.com/auth/classroom.topics`<br>`https://www.googleapis.com/auth/classroom.guardianlinks.students`<br>`https://www.googleapis.com/auth/classroom.profile.emails`<br>`https://www.googleapis.com/auth/classroom.profile.photos` |  |
 | drive | yes | Drive API | `https://www.googleapis.com/auth/drive` |  |
 | docs | yes | Docs API, Drive API | `https://www.googleapis.com/auth/drive`<br>`https://www.googleapis.com/auth/documents` | Export/copy/create via Drive |
@@ -805,6 +808,34 @@ gog sheets create "My New Spreadsheet" --sheets "Sheet1,Sheet2"
 ```bash
 # Profile
 gog people me
+gog people get people/<userId>
+
+# Search the Workspace directory
+gog people search "Ada Lovelace" --max 5
+
+# Relations (defaults to people/me)
+gog people relations
+gog people relations people/<userId> --type manager
+```
+
+### Chat
+
+```bash
+# Spaces
+gog chat spaces list
+gog chat spaces find "Engineering"
+gog chat spaces create "Engineering" --member alice@company.com --member bob@company.com
+
+# Messages
+gog chat messages list spaces/<spaceId> --max 5
+gog chat messages send spaces/<spaceId> --text "Build complete!" --thread spaces/<spaceId>/threads/<threadId>
+
+# Threads
+gog chat threads list spaces/<spaceId>
+
+# Direct messages
+gog chat dm space user@company.com
+gog chat dm send user@company.com --text "ping"
 ```
 
 ### Groups (Google Workspace)

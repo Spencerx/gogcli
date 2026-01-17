@@ -50,6 +50,9 @@ func TestNewServicesWithStoredToken(t *testing.T) {
 		t.Fatalf("NewClassroom: %v", err)
 	}
 
+	if _, err := NewChat(ctx, "a@b.com"); err != nil {
+		t.Fatalf("NewChat: %v", err)
+	}
 	if _, err := NewSheets(ctx, "a@b.com"); err != nil {
 		t.Fatalf("NewSheets: %v", err)
 	}
