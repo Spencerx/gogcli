@@ -10,10 +10,12 @@ run_tasks_tests() {
 
   run_required "tasks" "tasks lists list" gog tasks lists list --json --max 1 >/dev/null
 
-  local list_json list_id
-  list_json=$(gog tasks lists list --json --max 1)
-  list_id=$(extract_tasklist_id "$list_json")
-  [ -n "$list_id" ] || { echo "No task list found" >&2; exit 1; }
+  local created_list_json created_list_id list_json list_id
+  echo "==> tasks lists create"
+  created_list_json=$(gog tasks lists create "gogcli-smoke-$TS" --json)
+  created_list_id=$(extract_id "$created_list_json")
+  [ -n "$created_list_id" ] || { echo "Failed to parse task list id" >&2; exit 1; }
+  list_id="$created_list_id"
 
   run_required "tasks" "tasks list" gog tasks list "$list_id" --json --max 1 >/dev/null
 
