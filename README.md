@@ -1152,6 +1152,28 @@ go test -tags=integration ./...
 
 Tip: if you want to avoid macOS Keychain prompts during these runs, set `GOG_KEYRING_BACKEND=file` and `GOG_KEYRING_PASSWORD=...` (uses encrypted on-disk keyring).
 
+### Live Test Script (CLI)
+
+Fast end-to-end smoke checks against live APIs:
+
+```bash
+scripts/live-test.sh --fast
+scripts/live-test.sh --account you@gmail.com --skip groups,keep,calendar-enterprise
+```
+
+Script toggles:
+
+- `--auth all,groups` to re-auth before running
+- `--strict` to fail on optional features (groups/keep/enterprise)
+
+Go test wrapper (opt-in):
+
+```bash
+GOG_LIVE=1 go test -tags=integration ./internal/integration -run Live
+```
+
+Optional env: `GOG_LIVE_FAST=1`, `GOG_LIVE_SKIP=groups,keep`, `GOG_LIVE_AUTH=all,groups`.
+
 ### Make Shortcut
 
 Build and run:
