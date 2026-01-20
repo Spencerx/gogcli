@@ -17,10 +17,6 @@ type eventWithDays struct {
 	EndLocal       string `json:"endLocal,omitempty"`
 }
 
-func wrapEventWithDays(event *calendar.Event) *eventWithDays {
-	return wrapEventWithDaysWithTimezone(event, "", nil)
-}
-
 func wrapEventsWithDays(events []*calendar.Event) []*eventWithDays {
 	if len(events) == 0 {
 		return []*eventWithDays{}

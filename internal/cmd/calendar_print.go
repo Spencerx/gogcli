@@ -10,10 +10,6 @@ import (
 	"github.com/steipete/gogcli/internal/ui"
 )
 
-func printCalendarEvent(u *ui.UI, event *calendar.Event) {
-	printCalendarEventWithTimezone(u, event, "", nil)
-}
-
 func printCalendarEventWithTimezone(u *ui.UI, event *calendar.Event, calendarTimezone string, loc *time.Location) {
 	if u == nil || event == nil {
 		return
@@ -63,18 +59,7 @@ func printCalendarEventWithTimezone(u *ui.UI, event *calendar.Event, calendarTim
 	if event.Transparency == "transparent" {
 		u.Out().Printf("show-as\tfree")
 	}
-	if len(event.Attendees) > 0 {
-		for _, a := range event.Attendees {
-			if a == nil || strings.TrimSpace(a.Email) == "" {
-				continue
-			}
-			status := a.ResponseStatus
-			if a.Optional {
-				status += " (optional)"
-			}
-			u.Out().Printf("attendee\t%s\t%s", strings.TrimSpace(a.Email), status)
-		}
-	}
+	printEventAttendees(u, event.Attendees)
 	if event.GuestsCanInviteOthers != nil && !*event.GuestsCanInviteOthers {
 		u.Out().Printf("guests-can-invite\tfalse")
 	}
@@ -97,19 +82,7 @@ func printCalendarEventWithTimezone(u *ui.UI, event *calendar.Event, calendarTim
 	if len(event.Recurrence) > 0 {
 		u.Out().Printf("recurrence\t%s", strings.Join(event.Recurrence, "; "))
 	}
-	if event.Reminders != nil {
-		if event.Reminders.UseDefault {
-			u.Out().Printf("reminders\t(calendar default)")
-		} else if len(event.Reminders.Overrides) > 0 {
-			reminders := make([]string, 0, len(event.Reminders.Overrides))
-			for _, r := range event.Reminders.Overrides {
-				if r != nil {
-					reminders = append(reminders, fmt.Sprintf("%s:%dm", r.Method, r.Minutes))
-				}
-			}
-			u.Out().Printf("reminders\t%s", strings.Join(reminders, ", "))
-		}
-	}
+	printEventReminders(u, event.Reminders)
 	if len(event.Attachments) > 0 {
 		for _, a := range event.Attachments {
 			if a != nil {
@@ -205,4 +178,36 @@ func orEmpty(s string, fallback string) string {
 		return fallback
 	}
 	return s
+}
+
+func printEventAttendees(u *ui.UI, attendees []*calendar.EventAttendee) {
+	for _, a := range attendees {
+		if a == nil || strings.TrimSpace(a.Email) == "" {
+			continue
+		}
+		status := a.ResponseStatus
+		if a.Optional {
+			status += " (optional)"
+		}
+		u.Out().Printf("attendee\t%s\t%s", strings.TrimSpace(a.Email), status)
+	}
+}
+
+func printEventReminders(u *ui.UI, reminders *calendar.EventReminders) {
+	if reminders == nil {
+		return
+	}
+	if reminders.UseDefault {
+		u.Out().Printf("reminders\t(calendar default)")
+		return
+	}
+	if len(reminders.Overrides) > 0 {
+		parts := make([]string, 0, len(reminders.Overrides))
+		for _, r := range reminders.Overrides {
+			if r != nil {
+				parts = append(parts, fmt.Sprintf("%s:%dm", r.Method, r.Minutes))
+			}
+		}
+		u.Out().Printf("reminders\t%s", strings.Join(parts, ", "))
+	}
 }
