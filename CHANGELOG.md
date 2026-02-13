@@ -8,6 +8,7 @@
 - Gmail: add `--exclude-labels` to `watch serve` (defaults: `SPAM,TRASH`). (#194) — thanks @salmonumbrella.
 - Drive: share files with an entire Workspace domain via `drive share --to domain`. (#192) — thanks @Danielkweber.
 - Drive: add upload conversion flags `--convert` (auto) and `--convert-to` (`doc|sheet|slides`). (#240) — thanks @Danielkweber.
+- Docs: add `docs create --file` to import Markdown into Google Docs with inline image support and hardened temp-file cleanup. (#244) — thanks @chrismdp.
 
 ### Fixed
 

@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"google.golang.org/api/docs/v1"
@@ -147,9 +146,9 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	// When --file is set, upload the markdown content and let Drive convert it.
 	var images []markdownImage
 	if c.File != "" {
-		raw, err := os.ReadFile(c.File)
-		if err != nil {
-			return fmt.Errorf("read markdown file: %w", err)
+		raw, readErr := os.ReadFile(c.File)
+		if readErr != nil {
+			return fmt.Errorf("read markdown file: %w", readErr)
 		}
 		content := string(raw)
 
@@ -212,49 +211,28 @@ func (c *DocsCreateCmd) insertImages(ctx context.Context, account string, driveS
 	// Resolve image URLs — upload local files to Drive temporarily.
 	imageURLs := make(map[int]string)
 	var tempFileIDs []string
-	defer func() {
-		for _, id := range tempFileIDs {
-			_ = driveSvc.Files.Delete(id).Context(ctx).Do()
-		}
-	}()
+	defer cleanupDriveFileIDsBestEffort(ctx, driveSvc, tempFileIDs)
 
-	mdDir, err := filepath.Abs(filepath.Dir(c.File))
-	if err != nil {
-		return fmt.Errorf("resolve markdown directory: %w", err)
-	}
 	for _, img := range images {
 		if _, ok := placeholders[img.placeholder()]; !ok {
 			continue
 		}
 		if img.isRemote() {
 			imageURLs[img.index] = img.originalRef
-		} else {
-			imgPath := img.originalRef
-			if !filepath.IsAbs(imgPath) {
-				imgPath = filepath.Join(mdDir, imgPath)
-			}
-			imgPath = filepath.Clean(imgPath)
-
-			// Prevent path traversal outside the markdown file's directory.
-			realPath, err := filepath.EvalSymlinks(imgPath)
-			if err != nil {
-				return fmt.Errorf("resolve image path %q: %w", img.originalRef, err)
-			}
-			realDir, err := filepath.EvalSymlinks(mdDir)
-			if err != nil {
-				return fmt.Errorf("resolve markdown directory: %w", err)
-			}
-			if !strings.HasPrefix(realPath, realDir+string(filepath.Separator)) {
-				return fmt.Errorf("image path %q resolves outside markdown file directory", img.originalRef)
-			}
-
-			url, fileID, err := uploadLocalImage(ctx, driveSvc, realPath)
-			if err != nil {
-				return err
-			}
-			tempFileIDs = append(tempFileIDs, fileID)
-			imageURLs[img.index] = url
+			continue
 		}
+
+		realPath, resolveErr := resolveMarkdownImagePath(c.File, img.originalRef)
+		if resolveErr != nil {
+			return resolveErr
+		}
+
+		url, fileID, uploadErr := uploadLocalImage(ctx, driveSvc, realPath)
+		if uploadErr != nil {
+			return uploadErr
+		}
+		tempFileIDs = append(tempFileIDs, fileID)
+		imageURLs[img.index] = url
 	}
 
 	reqs := buildImageInsertRequests(placeholders, images, imageURLs)
