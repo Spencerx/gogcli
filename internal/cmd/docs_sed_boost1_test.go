@@ -48,7 +48,12 @@ func mockDocsServerWithImages(t *testing.T, doc *docs.Document) (*docs.Service, 
 }
 
 // buildDocWithInlineImage creates a document with inline objects.
-func buildDocWithInlineImage(objectID, alt string) *docs.Document {
+const (
+	testInlineObjectID  = "img1"
+	testInlineObjectAlt = "logo"
+)
+
+func buildDocWithInlineImage() *docs.Document {
 	return &docs.Document{
 		DocumentId: "test-doc",
 		Body: &docs.Body{Content: []*docs.StructuralElement{
@@ -56,18 +61,18 @@ func buildDocWithInlineImage(objectID, alt string) *docs.Document {
 				Elements: []*docs.ParagraphElement{
 					{TextRun: &docs.TextRun{Content: "before "}, StartIndex: 1, EndIndex: 8},
 					{InlineObjectElement: &docs.InlineObjectElement{
-						InlineObjectId: objectID,
+						InlineObjectId: testInlineObjectID,
 					}, StartIndex: 8, EndIndex: 9},
 					{TextRun: &docs.TextRun{Content: " after\n"}, StartIndex: 9, EndIndex: 16},
 				},
 			}, StartIndex: 1, EndIndex: 16},
 		}},
 		InlineObjects: map[string]docs.InlineObject{
-			objectID: {
+			testInlineObjectID: {
 				InlineObjectProperties: &docs.InlineObjectProperties{
 					EmbeddedObject: &docs.EmbeddedObject{
-						Title:       alt,
-						Description: alt,
+						Title:       testInlineObjectAlt,
+						Description: testInlineObjectAlt,
 					},
 				},
 			},
@@ -102,7 +107,7 @@ func TestRunImageReplace_NoImages(t *testing.T) {
 }
 
 func TestRunImageReplace_DeleteInlineImage(t *testing.T) {
-	doc := buildDocWithInlineImage("img1", "logo")
+	doc := buildDocWithInlineImage()
 	svc, cleanup := mockDocsServerWithImages(t, doc)
 	defer cleanup()
 	mockDocsService(t, svc)
@@ -115,7 +120,7 @@ func TestRunImageReplace_DeleteInlineImage(t *testing.T) {
 }
 
 func TestRunImageReplace_ReplaceWithNewImage(t *testing.T) {
-	doc := buildDocWithInlineImage("img1", "logo")
+	doc := buildDocWithInlineImage()
 	svc, cleanup := mockDocsServerWithImages(t, doc)
 	defer cleanup()
 	mockDocsService(t, svc)
@@ -128,7 +133,7 @@ func TestRunImageReplace_ReplaceWithNewImage(t *testing.T) {
 }
 
 func TestRunImageReplace_ReplaceWithText(t *testing.T) {
-	doc := buildDocWithInlineImage("img1", "logo")
+	doc := buildDocWithInlineImage()
 	svc, cleanup := mockDocsServerWithImages(t, doc)
 	defer cleanup()
 	mockDocsService(t, svc)
@@ -141,7 +146,7 @@ func TestRunImageReplace_ReplaceWithText(t *testing.T) {
 }
 
 func TestRunImageReplace_AllImages(t *testing.T) {
-	doc := buildDocWithInlineImage("img1", "logo")
+	doc := buildDocWithInlineImage()
 	svc, cleanup := mockDocsServerWithImages(t, doc)
 	defer cleanup()
 	mockDocsService(t, svc)
@@ -154,7 +159,7 @@ func TestRunImageReplace_AllImages(t *testing.T) {
 }
 
 func TestRunImageReplace_NoMatch(t *testing.T) {
-	doc := buildDocWithInlineImage("img1", "logo")
+	doc := buildDocWithInlineImage()
 	svc, cleanup := mockDocsServerWithImages(t, doc)
 	defer cleanup()
 	mockDocsService(t, svc)
@@ -751,7 +756,7 @@ func TestRunSingle_TableCreate(t *testing.T) {
 }
 
 func TestRunSingle_ImagePattern(t *testing.T) {
-	doc := buildDocWithInlineImage("img1", "logo")
+	doc := buildDocWithInlineImage()
 	svc, cleanup := mockDocsServerWithImages(t, doc)
 	defer cleanup()
 	mockDocsService(t, svc)

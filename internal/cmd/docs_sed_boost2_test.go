@@ -483,7 +483,7 @@ func TestSedIntegration_TransliterateCommand(t *testing.T) {
 }
 
 func TestSedIntegration_ImagePatternDelete(t *testing.T) {
-	doc := buildDocWithInlineImage("img1", "logo")
+	doc := buildDocWithInlineImage()
 	// Mock server for images
 	var captured []*docs.Request
 	srv := mockDocsServerAdvanced(t, doc, func(reqs []*docs.Request) {

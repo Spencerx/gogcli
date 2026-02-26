@@ -451,7 +451,7 @@ func TestSedIntegration_BatchAllTypes(t *testing.T) {
 // =============================================================================
 
 func TestRunBatch_ImagePattern(t *testing.T) {
-	doc := buildDocWithInlineImage("img1", "logo")
+	doc := buildDocWithInlineImage()
 	svc, cleanup := mockDocsServerWithImages(t, doc)
 	defer cleanup()
 	mockDocsService(t, svc)

@@ -23,7 +23,7 @@ func (e *sedExpr) compilePattern() (*regexp.Regexp, error) {
 // Returns the response (may be nil on success with no replies).
 func batchUpdate(ctx context.Context, docsSvc *docs.Service, docID string, reqs []*docs.Request) (*docs.BatchUpdateDocumentResponse, error) {
 	if len(reqs) == 0 {
-		return nil, nil
+		return &docs.BatchUpdateDocumentResponse{DocumentId: docID}, nil
 	}
 	var resp *docs.BatchUpdateDocumentResponse
 	err := retryOnQuota(ctx, func() error {

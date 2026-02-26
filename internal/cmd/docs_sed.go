@@ -360,8 +360,8 @@ func (c *DocsSedCmd) runBatch(ctx context.Context, u *ui.UI, account, id string,
 
 	// Run positional expressions sequentially (each changes doc state)
 	for _, ie := range positionalExprs {
-		if _, err := c.runPositionalInsert(ctx, u, account, id, ie.expr); err != nil {
-			return fmt.Errorf("expression %d: %w", ie.index+1, err)
+		if _, err2 := c.runPositionalInsert(ctx, u, account, id, ie.expr); err2 != nil {
+			return fmt.Errorf("expression %d: %w", ie.index+1, err2)
 		}
 	}
 
@@ -381,9 +381,9 @@ func (c *DocsSedCmd) runBatch(ctx context.Context, u *ui.UI, account, id string,
 			})
 		}
 
-		resp, err := batchUpdate(ctx, docsSvc, id, requests)
-		if err != nil {
-			return fmt.Errorf("native batch update: %w", err)
+		resp, err2 := batchUpdate(ctx, docsSvc, id, requests)
+		if err2 != nil {
+			return fmt.Errorf("native batch update: %w", err2)
 		}
 
 		if resp != nil {

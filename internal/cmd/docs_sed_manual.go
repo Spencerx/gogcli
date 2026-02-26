@@ -232,8 +232,8 @@ func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, 
 				Range: &docs.Range{StartIndex: m.start, EndIndex: m.end},
 			},
 		}}
-		if _, err := batchUpdate(ctx, docsSvc, id, deleteReqs); err != nil {
-			return 0, nil, fmt.Errorf("delete before image insert: %w", err)
+		if _, err2 := batchUpdate(ctx, docsSvc, id, deleteReqs); err2 != nil {
+			return 0, nil, fmt.Errorf("delete before image insert: %w", err2)
 		}
 		// Then: insert image in a separate API call
 		imgReq := &docs.InsertInlineImageRequest{
@@ -241,8 +241,8 @@ func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, 
 			Location:   &docs.Location{Index: m.start},
 			ObjectSize: buildImageSizeSpec(m.image),
 		}
-		if _, err := batchUpdate(ctx, docsSvc, id, []*docs.Request{{InsertInlineImage: imgReq}}); err != nil {
-			return 0, nil, fmt.Errorf("image insert (url=%s idx=%d): %w", m.image.URL, m.start, err)
+		if _, err2 := batchUpdate(ctx, docsSvc, id, []*docs.Request{{InsertInlineImage: imgReq}}); err2 != nil {
+			return 0, nil, fmt.Errorf("image insert (url=%s idx=%d): %w", m.image.URL, m.start, err2)
 		}
 	}
 
@@ -329,13 +329,13 @@ func (c *DocsSedCmd) runManualInner(ctx context.Context, docsSvc *docs.Service, 
 	}
 
 	// Phase 1: inserts, deletes, text formatting
-	if _, err := batchUpdate(ctx, docsSvc, id, requests); err != nil {
-		return 0, nil, fmt.Errorf("update document: %w", err)
+	if _, err2 := batchUpdate(ctx, docsSvc, id, requests); err2 != nil {
+		return 0, nil, fmt.Errorf("update document: %w", err2)
 	}
 
 	// Phase 2: non-bullet paragraph styles (headings, blockquotes)
-	if _, err := batchUpdate(ctx, docsSvc, id, paraRequests); err != nil {
-		return 0, nil, fmt.Errorf("apply paragraph styles: %w", err)
+	if _, err2 := batchUpdate(ctx, docsSvc, id, paraRequests); err2 != nil {
+		return 0, nil, fmt.Errorf("apply paragraph styles: %w", err2)
 	}
 
 	// Handle footnotes — each needs create + populate, processed individually in reverse
