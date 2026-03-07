@@ -14,6 +14,10 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo "")
 DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -X github.com/steipete/gogcli/internal/cmd.version=$(VERSION) -X github.com/steipete/gogcli/internal/cmd.commit=$(COMMIT) -X github.com/steipete/gogcli/internal/cmd.date=$(DATE)
+# `make lint` already covers vet-equivalent checks; skip duplicate work in `make test`.
+GO_TEST_FLAGS ?= -vet=off
+TEST_FLAGS ?=
+TEST_PKGS ?= ./...
 
 TOOLS_DIR := $(CURDIR)/.tools
 GOFUMPT := $(TOOLS_DIR)/gofumpt
@@ -91,7 +95,7 @@ pnpm-gate:
 	fi
 
 test:
-	@go test ./...
+	@go test $(GO_TEST_FLAGS) $(TEST_FLAGS) $(TEST_PKGS)
 
 ci: pnpm-gate fmt-check lint test
 

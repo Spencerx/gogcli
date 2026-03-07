@@ -26,7 +26,7 @@ jobs:
       - name: Format check
         run: make fmt-check
       - name: Test
-        run: go test ./...
+        run: make test
       - name: Lint
         run: make lint
 
@@ -74,10 +74,11 @@ jobs:
         # Skip tests that depend on macOS Keychain / Linux keyring or Unix path semantics.
         # These are covered by ubuntu-latest and macos-latest jobs.
         # See https://github.com/steipete/gogcli/issues/395
-        run: >-
-          go test ./...
-          -skip 'TestAuth|TestListClientCredentials|TestReadClientCredentials|TestConfigExists|TestExpandPath|TestResolveKeyringBackendInfo|TestLoadSecrets_LegacyFallback'
+        run: make test
         shell: bash
+        env:
+          TEST_FLAGS: >-
+            -skip 'TestAuth|TestListClientCredentials|TestReadClientCredentials|TestConfigExists|TestExpandPath|TestResolveKeyringBackendInfo|TestLoadSecrets_LegacyFallback'
       - name: Lint
         run: make lint
         shell: bash
@@ -93,6 +94,6 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Test
-        run: go test ./...
+        run: make test
       - name: Build (Keychain / cgo)
         run: CGO_ENABLED=1 go build ./cmd/gog
