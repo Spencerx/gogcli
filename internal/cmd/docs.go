@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 	gapi "google.golang.org/api/googleapi"
 
@@ -29,7 +28,7 @@ type DocsCmd struct {
 	Write       DocsWriteCmd       `cmd:"" name:"write" help:"Write content to a Google Doc"`
 	Insert      DocsInsertCmd      `cmd:"" name:"insert" help:"Insert text at a specific position"`
 	Delete      DocsDeleteCmd      `cmd:"" name:"delete" help:"Delete text range from document"`
-	FindReplace DocsFindReplaceCmd `cmd:"" name:"find-replace" help:"Find and replace text in document"`
+	FindReplace DocsFindReplaceCmd `cmd:"" name:"find-replace" help:"Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence."`
 	Update      DocsUpdateCmd      `cmd:"" name:"update" help:"Insert text at a specific index in a Google Doc"`
 	Edit        DocsEditCmd        `cmd:"" name:"edit" help:"Find and replace text in a Google Doc"`
 	Sed         DocsSedCmd         `cmd:"" name:"sed" help:"Regex find/replace (sed-style: s/pattern/replacement/g)"`
@@ -113,7 +112,7 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DocsCreateCmd struct {
 	Title    string `arg:"" name:"title" help:"Doc title"`
 	Parent   string `name:"parent" help:"Destination folder ID"`
-	File     string `name:"file" help:"Markdown file to import" type:"existingfile"`
+	File     string `name:"file" help:"Markdown file to import. Supports inline images via ![alt](url); append {width=N height=N} to control size in points. Local images must be in the same directory as the markdown file or a subdirectory (use relative paths). Remote URLs (https://...) are used directly." type:"existingfile"`
 	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 }
 
@@ -170,7 +169,7 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	// Pass 2: insert images if any were found.
 	if len(images) > 0 {
-		if err := c.insertImages(ctx, account, driveSvc, created.Id, images); err != nil {
+		if err := c.insertImages(ctx, account, created.Id, images); err != nil {
 			return fmt.Errorf("insert images: %w", err)
 		}
 	}
@@ -199,59 +198,12 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 // insertImages performs pass 2: reads back the created doc, resolves image URLs,
 // and replaces placeholder text with inline images.
-func (c *DocsCreateCmd) insertImages(ctx context.Context, account string, driveSvc *drive.Service, docID string, images []markdownImage) error {
-	docsSvc, err := newDocsService(ctx, account)
+func (c *DocsCreateCmd) insertImages(ctx context.Context, account string, docID string, images []markdownImage) error {
+	svc, err := newDocsService(ctx, account)
 	if err != nil {
 		return err
 	}
-
-	// Read back the document to find placeholder positions.
-	doc, err := docsSvc.Documents.Get(docID).Context(ctx).Do()
-	if err != nil {
-		return fmt.Errorf("read back document: %w", err)
-	}
-
-	placeholders := findPlaceholderIndices(doc, len(images))
-	if len(placeholders) == 0 {
-		return nil
-	}
-
-	// Resolve image URLs — upload local files to Drive temporarily.
-	imageURLs := make(map[int]string)
-	var tempFileIDs []string
-	defer cleanupDriveFileIDsBestEffort(ctx, driveSvc, tempFileIDs)
-
-	for _, img := range images {
-		if _, ok := placeholders[img.placeholder()]; !ok {
-			continue
-		}
-		if img.isRemote() {
-			imageURLs[img.index] = img.originalRef
-			continue
-		}
-
-		realPath, resolveErr := resolveMarkdownImagePath(c.File, img.originalRef)
-		if resolveErr != nil {
-			return resolveErr
-		}
-
-		url, fileID, uploadErr := uploadLocalImage(ctx, driveSvc, realPath)
-		if uploadErr != nil {
-			return uploadErr
-		}
-		tempFileIDs = append(tempFileIDs, fileID)
-		imageURLs[img.index] = url
-	}
-
-	reqs := buildImageInsertRequests(placeholders, images, imageURLs)
-	if len(reqs) == 0 {
-		return nil
-	}
-
-	_, err = docsSvc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
-		Requests: reqs,
-	}).Context(ctx).Do()
-	return err
+	return insertImagesIntoDocs(ctx, account, svc, docID, images, c.File)
 }
 
 type DocsCopyCmd struct {
