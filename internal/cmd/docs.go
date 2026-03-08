@@ -122,9 +122,10 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type DocsCreateCmd struct {
-	Title  string `arg:"" name:"title" help:"Doc title"`
-	Parent string `name:"parent" help:"Destination folder ID"`
-	File   string `name:"file" help:"Markdown file to import" type:"existingfile"`
+	Title    string `arg:"" name:"title" help:"Doc title"`
+	Parent   string `name:"parent" help:"Destination folder ID"`
+	File     string `name:"file" help:"Markdown file to import" type:"existingfile"`
+	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 }
 
 func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -187,6 +188,15 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if len(images) > 0 {
 		if err := c.insertImages(ctx, account, driveSvc, created.Id, images); err != nil {
 			return fmt.Errorf("insert images: %w", err)
+		}
+	}
+	if c.Pageless {
+		docsSvc, svcErr := newDocsService(ctx, account)
+		if svcErr != nil {
+			return svcErr
+		}
+		if err := setDocumentPageless(ctx, docsSvc, created.Id); err != nil {
+			return fmt.Errorf("set pageless mode: %w", err)
 		}
 	}
 
@@ -275,10 +285,11 @@ func (c *DocsCopyCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type DocsWriteCmd struct {
-	DocID  string `arg:"" name:"docId" help:"Doc ID"`
-	Text   string `name:"text" help:"Text to write"`
-	File   string `name:"file" help:"Text file path ('-' for stdin)"`
-	Append bool   `name:"append" help:"Append instead of replacing the document body"`
+	DocID    string `arg:"" name:"docId" help:"Doc ID"`
+	Text     string `name:"text" help:"Text to write"`
+	File     string `name:"file" help:"Text file path ('-' for stdin)"`
+	Append   bool   `name:"append" help:"Append instead of replacing the document body"`
+	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 }
 
 func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -360,6 +371,11 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 		}
 		return err
 	}
+	if c.Pageless {
+		if err := setDocumentPageless(ctx, svc, id); err != nil {
+			return fmt.Errorf("set pageless mode: %w", err)
+		}
+	}
 
 	if outfmt.IsJSON(ctx) {
 		payload := map[string]any{
@@ -385,10 +401,11 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 }
 
 type DocsUpdateCmd struct {
-	DocID string `arg:"" name:"docId" help:"Doc ID"`
-	Text  string `name:"text" help:"Text to insert"`
-	File  string `name:"file" help:"Text file path ('-' for stdin)"`
-	Index int64  `name:"index" help:"Insert index (default: end of document)"`
+	DocID    string `arg:"" name:"docId" help:"Doc ID"`
+	Text     string `name:"text" help:"Text to insert"`
+	File     string `name:"file" help:"Text file path ('-' for stdin)"`
+	Index    int64  `name:"index" help:"Insert index (default: end of document)"`
+	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 }
 
 func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -459,6 +476,11 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *Root
 			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
 		}
 		return err
+	}
+	if c.Pageless {
+		if err := setDocumentPageless(ctx, svc, id); err != nil {
+			return fmt.Errorf("set pageless mode: %w", err)
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -1193,6 +1215,22 @@ func tabInfoJSON(tab *docs.Tab) map[string]any {
 		}
 	}
 	return m
+}
+
+func setDocumentPageless(ctx context.Context, svc *docs.Service, docID string) error {
+	_, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{
+		Requests: []*docs.Request{{
+			UpdateDocumentStyle: &docs.UpdateDocumentStyleRequest{
+				DocumentStyle: &docs.DocumentStyle{
+					DocumentFormat: &docs.DocumentFormat{
+						DocumentMode: "PAGELESS",
+					},
+				},
+				Fields: "documentFormat",
+			},
+		}},
+	}).Context(ctx).Do()
+	return err
 }
 
 func resolveTextInput(text, file string, kctx *kong.Context, textFlag, fileFlag string) (string, bool, error) {

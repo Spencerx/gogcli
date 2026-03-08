@@ -894,13 +894,16 @@ gog docs info <docId>
 gog docs cat <docId> --max-bytes 10000
 gog docs create "My Doc"
 gog docs create "My Doc" --file ./doc.md            # Import markdown
+gog docs create "My Doc" --pageless
 gog docs copy <docId> "My Doc Copy"
 gog docs export <docId> --format pdf --out ./doc.pdf
 gog docs list-tabs <docId>
 gog docs cat <docId> --tab "Notes"
 gog docs cat <docId> --all-tabs
-gog docs update <docId> --format markdown --content-file ./doc.md
-gog docs write <docId> --replace --markdown --file ./doc.md
+gog docs update <docId> --text "Append this later"
+gog docs update <docId> --file ./insert.txt --index 25 --pageless
+gog docs write <docId> --text "Fresh content"
+gog docs write <docId> --file ./body.txt --append --pageless
 gog docs find-replace <docId> "old" "new"
 
 # Slides
