@@ -427,11 +427,12 @@ func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets boo
 			u.Out().Printf("hook_max_bytes\t%d", state.Hook.MaxBytes)
 		}
 		if state.Hook.Token != "" {
-			if showSecrets {
+			switch {
+			case showSecrets:
 				u.Out().Printf("hook_token\t%s", state.Hook.Token)
-			} else if len(state.Hook.Token) > 4 {
+			case len(state.Hook.Token) > 4:
 				u.Out().Printf("hook_token\t%s...(%d chars)", state.Hook.Token[:4], len(state.Hook.Token))
-			} else {
+			default:
 				u.Out().Printf("hook_token\t[REDACTED]")
 			}
 		}

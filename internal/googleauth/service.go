@@ -391,6 +391,7 @@ func ScopesForManageWithOptions(services []Service, opts ScopeOptions) ([]string
 	if len(opts.ExtraScopes) > 0 {
 		merged = mergeScopes(merged, opts.ExtraScopes)
 	}
+
 	return merged, nil
 }
 

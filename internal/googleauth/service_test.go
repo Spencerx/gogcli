@@ -519,6 +519,7 @@ func TestScopesForManageWithOptions_ExtraScopes(t *testing.T) {
 
 	// De-duplication: gmail.readonly should appear exactly once
 	count := 0
+
 	for _, s := range scopes {
 		if s == "https://www.googleapis.com/auth/gmail.readonly" {
 			count++
