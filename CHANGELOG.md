@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.12.0 - Unreleased
+## 0.12.0 - 2026-03-09
 
 ### Highlights
 - Admin: full Workspace Admin users/groups coverage for common directory operations. (#403) — thanks @dl-alexandre.
