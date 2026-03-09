@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,9 +11,6 @@ import (
 
 	admin "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/option"
-
-	"github.com/steipete/gogcli/internal/outfmt"
-	"github.com/steipete/gogcli/internal/ui"
 )
 
 func TestRequireAdminAccount_ConsumerBlocked(t *testing.T) {
@@ -94,11 +90,7 @@ func TestAdminUsersList_JSON_AllowsNilName(t *testing.T) {
 	}
 	newAdminDirectoryService = func(context.Context, string) (*admin.Service, error) { return svc, nil }
 
-	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if uiErr != nil {
-		t.Fatalf("ui.New: %v", uiErr)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCmdJSONContext(t)
 
 	out := captureStdout(t, func() {
 		if err := (&AdminUsersListCmd{Domain: "example.com"}).Run(ctx, &RootFlags{Account: "svc@example.com"}); err != nil {
@@ -152,11 +144,7 @@ func TestAdminGroupsMembersAdd_JSON(t *testing.T) {
 	}
 	newAdminDirectoryService = func(context.Context, string) (*admin.Service, error) { return svc, nil }
 
-	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
-	if uiErr != nil {
-		t.Fatalf("ui.New: %v", uiErr)
-	}
-	ctx := outfmt.WithMode(ui.WithUI(context.Background(), u), outfmt.Mode{JSON: true})
+	ctx := newCmdJSONContext(t)
 
 	out := captureStdout(t, func() {
 		if err := (&AdminGroupsMembersAddCmd{
