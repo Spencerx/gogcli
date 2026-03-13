@@ -19,6 +19,8 @@ import (
 
 const gmailFilterCreateMaxRetries = 3
 
+var errMatchingGmailFilterNotFound = errors.New("matching gmail filter not found")
+
 var sleepBeforeGmailFilterRetry = func(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
 		return nil
@@ -264,6 +266,9 @@ func createGmailFilterWithRetry(ctx context.Context, svc *gmail.Service, filter 
 			if lookupErr == nil && existing != nil {
 				return existing, nil
 			}
+			if errors.Is(lookupErr, errMatchingGmailFilterNotFound) {
+				return nil, err
+			}
 			if lookupErr != nil {
 				return nil, lookupErr
 			}
@@ -336,7 +341,7 @@ func findMatchingGmailFilter(svc *gmail.Service, want *gmail.Filter) (*gmail.Fil
 		}
 	}
 
-	return nil, nil
+	return nil, errMatchingGmailFilterNotFound
 }
 
 func gmailFiltersEqual(a, b *gmail.Filter) bool {

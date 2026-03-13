@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Gmail: add `gmail autoreply` to reply once to matching messages, label the thread for dedupe, and optionally archive/mark read. Includes docs and regression coverage for skip/reply flows.
+
 ## 0.12.0 - 2026-03-09
 
 ### Highlights
