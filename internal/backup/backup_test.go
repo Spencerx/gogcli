@@ -139,6 +139,7 @@ func TestVerifyDetectsManifestHashMismatch(t *testing.T) {
 	manifest := readTestManifest(t, repo)
 	manifest.Shards[0].SHA256 = strings.Repeat("0", 64)
 	writeTestManifest(t, repo, manifest)
+	commitTestRepo(t, ctx, repo, "test: tamper manifest hash")
 
 	_, err := Verify(ctx, Options{ConfigPath: config})
 	if err == nil || !strings.Contains(err.Error(), "hash mismatch") {
@@ -153,6 +154,7 @@ func TestVerifyDetectsManifestRowCountMismatch(t *testing.T) {
 	manifest := readTestManifest(t, repo)
 	manifest.Shards[0].Rows = 2
 	writeTestManifest(t, repo, manifest)
+	commitTestRepo(t, ctx, repo, "test: tamper manifest rows")
 
 	_, err := Verify(ctx, Options{ConfigPath: config})
 	if err == nil || !strings.Contains(err.Error(), "row count mismatch") {
@@ -368,6 +370,16 @@ func writeTestManifest(t *testing.T, repo string, manifest Manifest) {
 	data = append(data, '\n')
 	if err := os.WriteFile(filepath.Join(repo, "manifest.json"), data, 0o600); err != nil {
 		t.Fatalf("write manifest: %v", err)
+	}
+}
+
+func commitTestRepo(t *testing.T, ctx context.Context, repo, message string) {
+	t.Helper()
+	if err := git(ctx, repo, "add", "."); err != nil {
+		t.Fatalf("git add: %v", err)
+	}
+	if err := git(ctx, repo, "commit", "-m", message); err != nil {
+		t.Fatalf("git commit: %v", err)
 	}
 }
 
