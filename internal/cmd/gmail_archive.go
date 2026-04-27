@@ -177,6 +177,9 @@ func searchMessageIDs(ctx context.Context, svc *gmail.Service, query string, lim
 			MaxResults(batchSize).
 			Fields("messages(id),nextPageToken").
 			Context(ctx)
+		if labelIDs := gmailQuerySystemLabelIDs(query); len(labelIDs) > 0 {
+			call = call.LabelIds(labelIDs...)
+		}
 		if pageToken != "" {
 			call = call.PageToken(pageToken)
 		}

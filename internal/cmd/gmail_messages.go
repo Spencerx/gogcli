@@ -56,6 +56,9 @@ func (c *GmailMessagesSearchCmd) Run(ctx context.Context, flags *RootFlags) erro
 			MaxResults(c.Max).
 			Fields("messages(id,threadId),nextPageToken").
 			Context(ctx)
+		if labelIDs := gmailQuerySystemLabelIDs(query); len(labelIDs) > 0 {
+			call = call.LabelIds(labelIDs...)
+		}
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
