@@ -26,7 +26,7 @@
 - Drive: include `driveId` in `drive ls`, `drive search`, and `drive get` field masks so Shared Drive files can be identified in JSON output. (#524) — thanks @LeanSheng.
 - Gmail: expose reply threading headers in default `gmail get --format metadata` output and fail explicit reply targets that cannot provide a `Message-ID`. (#528, #512) — thanks @solomonneas.
 - Docs: include available tab names when `docs cat --tab` / structure lookup cannot find the requested tab. (#532) — thanks @johnbenjaminlewis.
-- Docs: size Markdown images consistently for `docs write --replace --markdown` by reusing the Docs image insertion path after Drive conversion. (#518) — thanks @vinothd-oai.
+- Docs: size remote Markdown images consistently for `docs write --replace --markdown` by reusing the Docs image insertion path after Drive conversion, and return a clear error for local image paths that the Docs API cannot fetch directly. (#518) — thanks @vinothd-oai.
 
 ## 0.13.0 - 2026-04-20
 

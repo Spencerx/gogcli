@@ -103,7 +103,7 @@ func replaceDocsTextRange(ctx context.Context, svc *docs.Service, doc *docs.Docu
 	return nil
 }
 
-func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, account string, doc *docs.Document, startIdx, endIdx int64, replaceText, basePath string) error {
+func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, doc *docs.Document, startIdx, endIdx int64, replaceText string) error {
 	cleaned, images := extractMarkdownImages(replaceText)
 	elements := ParseMarkdown(cleaned)
 	formattingRequests, textToInsert, tables := MarkdownToDocsRequests(elements, startIdx)
@@ -148,7 +148,7 @@ func replaceDocsMarkdownRange(ctx context.Context, svc *docs.Service, account st
 	}
 
 	if len(images) > 0 {
-		imgErr := insertImagesIntoDocs(ctx, account, svc, doc.DocumentId, images, basePath)
+		imgErr := insertImagesIntoDocs(ctx, svc, doc.DocumentId, images)
 		cleanupDocsImagePlaceholders(ctx, svc, doc.DocumentId, images)
 		if imgErr != nil {
 			return fmt.Errorf("insert images: %w", imgErr)

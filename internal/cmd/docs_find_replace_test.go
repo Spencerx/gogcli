@@ -517,14 +517,14 @@ func TestDocsFindReplace_MarkdownImageFailure_CleansUpPlaceholders(t *testing.T)
 			}
 			batchCalls = append(batchCalls, req)
 
-			// Fail the second batchUpdate (the image insertion) with a 500.
+			// Fail the second batchUpdate (the image insertion) with a non-retryable 400.
 			if len(batchCalls) == 2 {
-				w.WriteHeader(http.StatusInternalServerError)
+				w.WriteHeader(http.StatusBadRequest)
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"error": map[string]any{
-						"code":    500,
-						"message": "simulated backend error",
-						"status":  "INTERNAL",
+						"code":    400,
+						"message": "simulated invalid image",
+						"status":  "INVALID_ARGUMENT",
 					},
 				})
 				return

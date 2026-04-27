@@ -112,7 +112,7 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DocsCreateCmd struct {
 	Title    string `arg:"" name:"title" help:"Doc title"`
 	Parent   string `name:"parent" help:"Destination folder ID"`
-	File     string `name:"file" help:"Markdown file to import. Supports inline images via ![alt](url); append {width=N height=N} to control size in points. Local images must be in the same directory as the markdown file or a subdirectory (use relative paths). Remote URLs (https://...) are used directly." type:"existingfile"`
+	File     string `name:"file" help:"Markdown file to import. Supports inline images from public HTTPS URLs via ![alt](url); append {width=N height=N} to control size in points." type:"existingfile"`
 	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
 }
 
@@ -212,7 +212,7 @@ func (c *DocsCreateCmd) insertImages(ctx context.Context, account string, docID 
 	if err != nil {
 		return err
 	}
-	return insertImagesIntoDocs(ctx, account, svc, docID, images, c.File)
+	return insertImagesIntoDocs(ctx, svc, docID, images)
 }
 
 type DocsCopyCmd struct {

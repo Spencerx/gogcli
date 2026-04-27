@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
@@ -95,13 +96,17 @@ func TestDocsWrite_MarkdownReplaceUsesDriveUpdate(t *testing.T) {
 func TestDocsWrite_MarkdownImagesInsertedAfterDriveUpdate(t *testing.T) {
 	origDocs := newDocsService
 	origDrive := newDriveService
+	origRetryDelays := docsImageInsertRetryDelays
 	t.Cleanup(func() {
 		newDocsService = origDocs
 		newDriveService = origDrive
+		docsImageInsertRetryDelays = origRetryDelays
 	})
+	docsImageInsertRetryDelays = []time.Duration{0}
 
 	var uploadBody string
 	var sawDocsGet bool
+	var imageInsertAttempts int
 	var batchReq docs.BatchUpdateDocumentRequest
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -125,6 +130,19 @@ func TestDocsWrite_MarkdownImagesInsertedAfterDriveUpdate(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(docBodyWithText(uploadBody))
 			return
 		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/documents/doc1:batchUpdate"):
+			imageInsertAttempts++
+			if imageInsertAttempts == 1 {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": map[string]any{
+						"code":    http.StatusInternalServerError,
+						"message": "Internal Error",
+						"status":  "INTERNAL",
+					},
+				})
+				return
+			}
 			if err := json.NewDecoder(r.Body).Decode(&batchReq); err != nil {
 				t.Fatalf("decode batch update: %v", err)
 			}
@@ -180,6 +198,9 @@ func TestDocsWrite_MarkdownImagesInsertedAfterDriveUpdate(t *testing.T) {
 	if !sawDocsGet {
 		t.Fatal("expected image insertion path to read the document")
 	}
+	if imageInsertAttempts != 2 {
+		t.Fatalf("expected image insert retry, got %d attempts", imageInsertAttempts)
+	}
 
 	inserts := map[string]*docs.InsertInlineImageRequest{}
 	for _, req := range batchReq.Requests {
@@ -196,7 +217,7 @@ func TestDocsWrite_MarkdownImagesInsertedAfterDriveUpdate(t *testing.T) {
 	assertImageSize(t, inserts["https://example.com/sized.png"], 200, 150)
 }
 
-func TestDocsWrite_MarkdownLocalImagesResolveRelativeToSourceFile(t *testing.T) {
+func TestDocsWrite_MarkdownLocalImagesReturnActionableError(t *testing.T) {
 	origDocs := newDocsService
 	origDrive := newDriveService
 	t.Cleanup(func() {
@@ -219,7 +240,6 @@ func TestDocsWrite_MarkdownLocalImagesResolveRelativeToSourceFile(t *testing.T) 
 	}
 
 	var uploadBody string
-	var uploadedImageName string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -235,32 +255,6 @@ func TestDocsWrite_MarkdownLocalImagesResolveRelativeToSourceFile(t *testing.T) 
 		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/documents/doc1"):
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(docBodyWithText(uploadBody))
-			return
-		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/upload/drive/v3/files"):
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				t.Fatalf("read image upload body: %v", err)
-			}
-			if !strings.Contains(string(body), "png") {
-				t.Fatalf("expected local image file contents in upload body, got %q", string(body))
-			}
-			uploadedImageName = "local.png"
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":             "img1",
-				"webContentLink": "https://drive.google.com/uc?id=img1",
-			})
-			return
-		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/drive/v3/files/img1/permissions"):
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "perm1"})
-			return
-		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/documents/doc1:batchUpdate"):
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"documentId": "doc1"})
-			return
-		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/drive/v3/files/img1"):
-			w.WriteHeader(http.StatusNoContent)
 			return
 		default:
 			http.NotFound(w, r)
@@ -290,11 +284,12 @@ func TestDocsWrite_MarkdownLocalImagesResolveRelativeToSourceFile(t *testing.T) 
 
 	flags := &RootFlags{Account: "a@b.com"}
 	ctx := newDocsJSONContext(t)
-	if err := runKong(t, &DocsWriteCmd{}, []string{"doc1", "--file", mdFile, "--replace", "--markdown"}, ctx, flags); err != nil {
-		t.Fatalf("markdown replace write: %v", err)
+	err = runKong(t, &DocsWriteCmd{}, []string{"doc1", "--file", mdFile, "--replace", "--markdown"}, ctx, flags)
+	if err == nil {
+		t.Fatal("expected local markdown image error")
 	}
-	if uploadedImageName != "local.png" {
-		t.Fatalf("expected local image upload from markdown directory, got %q", uploadedImageName)
+	if !strings.Contains(err.Error(), "local markdown image") || !strings.Contains(err.Error(), "public HTTPS image URL") {
+		t.Fatalf("expected actionable local-image error, got %v", err)
 	}
 }
 

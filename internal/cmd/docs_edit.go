@@ -11,7 +11,6 @@ import (
 	"google.golang.org/api/drive/v3"
 	gapi "google.golang.org/api/googleapi"
 
-	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -41,11 +40,7 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 		return usage("--append cannot be combined with --replace")
 	}
 	if c.Markdown {
-		basePath, baseErr := c.markdownBasePath()
-		if baseErr != nil {
-			return baseErr
-		}
-		return c.writeMarkdown(ctx, flags, id, text, basePath)
+		return c.writeMarkdown(ctx, flags, id, text)
 	}
 
 	return c.writePlainText(ctx, flags, id, text)
@@ -63,18 +58,6 @@ func (c *DocsWriteCmd) resolveWriteText(kctx *kong.Context) (string, error) {
 		return "", usage("empty text")
 	}
 	return text, nil
-}
-
-func (c *DocsWriteCmd) markdownBasePath() (string, error) {
-	file := strings.TrimSpace(c.File)
-	if file == "" || file == "-" {
-		return ".", nil
-	}
-	expanded, err := config.ExpandPath(file)
-	if err != nil {
-		return "", err
-	}
-	return expanded, nil
 }
 
 func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, docID, text string) error {
@@ -169,7 +152,7 @@ func (c *DocsWriteCmd) writePlainTextResult(ctx context.Context, resp *docs.Batc
 	return nil
 }
 
-func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docID, content string, basePath string) error {
+func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docID, content string) error {
 	u := ui.FromContext(ctx)
 
 	if !c.Replace {
@@ -208,7 +191,7 @@ func (c *DocsWriteCmd) writeMarkdown(ctx context.Context, flags *RootFlags, docI
 		}
 	}
 	if len(images) > 0 {
-		if err := insertImagesIntoDocs(ctx, account, docsSvc, docID, images, basePath); err != nil {
+		if err := insertImagesIntoDocs(ctx, docsSvc, docID, images); err != nil {
 			cleanupDocsImagePlaceholders(ctx, docsSvc, docID, images)
 			return fmt.Errorf("insert images: %w", err)
 		}
@@ -473,7 +456,7 @@ type DocsFindReplaceCmd struct {
 	ReplaceText string `arg:"" optional:"" name:"replace" help:"Replacement text (omit when using --content-file)"`
 	ContentFile string `name:"content-file" help:"Read replacement from a file instead of the positional argument."`
 	MatchCase   bool   `name:"match-case" help:"Case-sensitive matching"`
-	Format      string `name:"format" help:"Replacement format: plain|markdown. Markdown converts formatting, tables, and inline images; local images must be under --content-file's directory (or use remote URLs)." default:"plain" enum:"plain,markdown"`
+	Format      string `name:"format" help:"Replacement format: plain|markdown. Markdown converts formatting, tables, and inline images from public HTTPS URLs." default:"plain" enum:"plain,markdown"`
 	First       bool   `name:"first" help:"Replace only the first occurrence instead of all."`
 	TabID       string `name:"tab-id" help:"Target a specific tab by ID (see docs list-tabs)"`
 }
@@ -517,11 +500,6 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return usage("--tab-id is not yet supported with --format markdown")
 	}
 
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	svc, err := requireDocsService(ctx, flags)
 	if err != nil {
 		return err
@@ -544,7 +522,7 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return c.printFirstResult(ctx, u, docID, replaceText, 0, 0)
 		}
 		if format == docsContentFormatMarkdown {
-			err = c.runMarkdown(ctx, svc, account, doc, startIdx, endIdx, replaceText)
+			err = c.runMarkdown(ctx, svc, doc, startIdx, endIdx, replaceText)
 		} else {
 			err = c.runPlain(ctx, svc, doc, startIdx, endIdx, replaceText)
 		}
@@ -556,7 +534,7 @@ func (c *DocsFindReplaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	matches := findTextMatches(targetDoc, c.Find, c.MatchCase)
 	for i := len(matches) - 1; i >= 0; i-- {
-		if err = c.runMarkdown(ctx, svc, account, doc, matches[i].startIndex, matches[i].endIndex, replaceText); err != nil {
+		if err = c.runMarkdown(ctx, svc, doc, matches[i].startIndex, matches[i].endIndex, replaceText); err != nil {
 			return err
 		}
 		if i == 0 {
@@ -625,12 +603,8 @@ func (c *DocsFindReplaceCmd) runPlain(ctx context.Context, svc *docs.Service, do
 	return replaceDocsTextRange(ctx, svc, doc, startIdx, endIdx, replaceText, c.TabID)
 }
 
-func (c *DocsFindReplaceCmd) runMarkdown(ctx context.Context, svc *docs.Service, account string, doc *docs.Document, startIdx, endIdx int64, replaceText string) error {
-	basePath := c.ContentFile
-	if basePath == "" {
-		basePath = "."
-	}
-	return replaceDocsMarkdownRange(ctx, svc, account, doc, startIdx, endIdx, replaceText, basePath)
+func (c *DocsFindReplaceCmd) runMarkdown(ctx context.Context, svc *docs.Service, doc *docs.Document, startIdx, endIdx int64, replaceText string) error {
+	return replaceDocsMarkdownRange(ctx, svc, doc, startIdx, endIdx, replaceText)
 }
 
 func (c *DocsFindReplaceCmd) printFirstResult(ctx context.Context, u *ui.UI, docID, replaceText string, replacements, total int) error {
