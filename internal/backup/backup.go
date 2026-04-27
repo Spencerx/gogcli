@@ -1,0 +1,558 @@
+//nolint:err113,govet,revive,wrapcheck,wsl_v5 // Contextual errors keep backup call sites readable.
+package backup
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+	"reflect"
+	"sort"
+	"strings"
+	"time"
+)
+
+const formatVersion = 1
+
+type Manifest struct {
+	Format     int            `json:"format"`
+	App        string         `json:"app"`
+	Encrypted  bool           `json:"encrypted"`
+	Exported   time.Time      `json:"exported"`
+	Recipients []string       `json:"recipients,omitempty"`
+	Services   []string       `json:"services,omitempty"`
+	Accounts   []string       `json:"accounts,omitempty"`
+	Counts     map[string]int `json:"counts,omitempty"`
+	Shards     []ShardEntry   `json:"shards"`
+}
+
+type ShardEntry struct {
+	Service string `json:"service"`
+	Kind    string `json:"kind"`
+	Account string `json:"account,omitempty"`
+	Path    string `json:"path"`
+	Rows    int    `json:"rows"`
+	SHA256  string `json:"sha256"`
+	Bytes   int64  `json:"bytes"`
+}
+
+type PlainShard struct {
+	Service   string
+	Kind      string
+	Account   string
+	Path      string
+	Rows      int
+	Plaintext []byte
+}
+
+type Snapshot struct {
+	Services []string
+	Accounts []string
+	Counts   map[string]int
+	Shards   []PlainShard
+}
+
+type Result struct {
+	Repo      string         `json:"repo"`
+	Changed   bool           `json:"changed"`
+	Encrypted bool           `json:"encrypted"`
+	Shards    int            `json:"shards"`
+	Counts    map[string]int `json:"counts,omitempty"`
+}
+
+func Init(ctx context.Context, opts Options) (Config, string, error) {
+	cfg, err := ResolveOptions(opts)
+	if err != nil {
+		return Config{}, "", err
+	}
+	recipient, err := EnsureIdentity(cfg.Identity)
+	if err != nil {
+		return Config{}, "", err
+	}
+	if len(cfg.Recipients) == 0 {
+		cfg.Recipients = []string{recipient}
+	}
+	if err := SaveConfig(opts.ConfigPath, cfg); err != nil {
+		return Config{}, "", err
+	}
+	if err := ensureRepo(ctx, cfg); err != nil {
+		return Config{}, "", err
+	}
+	if err := writeBackupReadme(cfg.Repo); err != nil {
+		return Config{}, "", err
+	}
+	_, err = commitAndPush(ctx, cfg, "docs: describe encrypted gog backup", opts.Push)
+	return cfg, recipient, err
+}
+
+func PushSnapshot(ctx context.Context, snapshot Snapshot, opts Options) (Result, error) {
+	cfg, err := ResolveOptions(opts)
+	if err != nil {
+		return Result{}, err
+	}
+	if len(cfg.Recipients) == 0 {
+		recipient, err := RecipientFromIdentity(cfg.Identity)
+		if err != nil {
+			return Result{}, err
+		}
+		cfg.Recipients = []string{recipient}
+	}
+	if err := ensureRepo(ctx, cfg); err != nil {
+		return Result{}, err
+	}
+	if err := writeBackupReadme(cfg.Repo); err != nil {
+		return Result{}, err
+	}
+	oldManifest, _ := readManifest(cfg.Repo)
+	manifest, err := writeSnapshot(ctx, cfg, snapshot, oldManifest)
+	if err != nil {
+		return Result{}, err
+	}
+	changed, err := commitAndPush(ctx, cfg, "sync: update encrypted gog backup", opts.Push)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{Repo: cfg.Repo, Changed: changed, Encrypted: true, Shards: len(manifest.Shards), Counts: manifest.Counts}, nil
+}
+
+func Verify(ctx context.Context, opts Options) (Result, error) {
+	cfg, err := ResolveOptions(opts)
+	if err != nil {
+		return Result{}, err
+	}
+	if err := ensureRepo(ctx, cfg); err != nil {
+		return Result{}, err
+	}
+	manifest, err := readManifest(cfg.Repo)
+	if err != nil {
+		return Result{}, err
+	}
+	if manifest.Format != formatVersion {
+		return Result{}, fmt.Errorf("unsupported backup format %d", manifest.Format)
+	}
+	counts := map[string]int{}
+	for _, shard := range manifest.Shards {
+		select {
+		case <-ctx.Done():
+			return Result{}, ctx.Err()
+		default:
+		}
+		plaintext, err := decryptShardFile(cfg, shard)
+		if err != nil {
+			return Result{}, err
+		}
+		if got := sha256Hex(plaintext); got != shard.SHA256 {
+			return Result{}, fmt.Errorf("backup shard hash mismatch for %s", shard.Path)
+		}
+		rows, err := countJSONLLines(plaintext)
+		if err != nil {
+			return Result{}, fmt.Errorf("count rows in %s: %w", shard.Path, err)
+		}
+		if rows != shard.Rows {
+			return Result{}, fmt.Errorf("backup shard row count mismatch for %s: got %d, want %d", shard.Path, rows, shard.Rows)
+		}
+		key := shard.Service
+		if strings.TrimSpace(shard.Kind) != "" {
+			key += "." + shard.Kind
+		}
+		counts[key] += rows
+	}
+	return Result{Repo: cfg.Repo, Changed: false, Encrypted: manifest.Encrypted, Shards: len(manifest.Shards), Counts: counts}, nil
+}
+
+func Status(ctx context.Context, opts Options) (Manifest, string, error) {
+	cfg, err := ResolveOptions(opts)
+	if err != nil {
+		return Manifest{}, "", err
+	}
+	if err := ensureRepo(ctx, cfg); err != nil {
+		return Manifest{}, "", err
+	}
+	manifest, err := readManifest(cfg.Repo)
+	if err != nil {
+		return Manifest{}, "", err
+	}
+	return manifest, cfg.Repo, nil
+}
+
+func NewJSONLShard(service, kind, account, rel string, rows any) (PlainShard, error) {
+	plaintext, count, err := encodeJSONL(rows)
+	if err != nil {
+		return PlainShard{}, err
+	}
+	return PlainShard{
+		Service:   strings.TrimSpace(service),
+		Kind:      strings.TrimSpace(kind),
+		Account:   strings.TrimSpace(account),
+		Path:      filepath.ToSlash(rel),
+		Rows:      count,
+		Plaintext: plaintext,
+	}, nil
+}
+
+func writeSnapshot(ctx context.Context, cfg Config, snapshot Snapshot, old Manifest) (Manifest, error) {
+	recipients := normalizedStrings(cfg.Recipients)
+	reuseEncrypted := sameStrings(old.Recipients, recipients)
+	shards := make([]ShardEntry, 0, len(snapshot.Shards))
+	for _, shard := range snapshot.Shards {
+		select {
+		case <-ctx.Done():
+			return Manifest{}, ctx.Err()
+		default:
+		}
+		entry, err := writeShard(cfg, old, shard, reuseEncrypted)
+		if err != nil {
+			return Manifest{}, err
+		}
+		shards = append(shards, entry)
+	}
+	sort.Slice(shards, func(i, j int) bool { return shards[i].Path < shards[j].Path })
+	manifest := Manifest{
+		Format:     formatVersion,
+		App:        "gog",
+		Encrypted:  true,
+		Exported:   time.Now().UTC(),
+		Recipients: recipients,
+		Services:   normalizedStrings(snapshot.Services),
+		Accounts:   normalizedStrings(snapshot.Accounts),
+		Counts:     cloneCounts(snapshot.Counts),
+		Shards:     shards,
+	}
+	if manifest.Counts == nil {
+		manifest.Counts = map[string]int{}
+		for _, shard := range shards {
+			key := shard.Service
+			if shard.Kind != "" {
+				key += "." + shard.Kind
+			}
+			manifest.Counts[key] += shard.Rows
+		}
+	}
+	if equivalentManifest(old, manifest) {
+		return old, nil
+	}
+	if err := removeStaleShards(cfg.Repo, shards); err != nil {
+		return Manifest{}, err
+	}
+	if err := writeManifest(cfg.Repo, manifest); err != nil {
+		return Manifest{}, err
+	}
+	return manifest, nil
+}
+
+func writeShard(cfg Config, old Manifest, shard PlainShard, reuseEncrypted bool) (ShardEntry, error) {
+	if strings.TrimSpace(shard.Service) == "" {
+		return ShardEntry{}, fmt.Errorf("backup shard service is required")
+	}
+	hash := sha256Hex(shard.Plaintext)
+	path, err := resolveShardPath(cfg.Repo, shard.Path)
+	if err != nil {
+		return ShardEntry{}, err
+	}
+	if oldEntry, ok := old.entry(shard.Path); reuseEncrypted && ok && oldEntry.SHA256 == hash {
+		if info, err := os.Stat(path); err == nil {
+			oldEntry.Bytes = info.Size()
+			return oldEntry, nil
+		}
+	}
+	encrypted, _, err := encryptShard(shard.Plaintext, cfg.Recipients)
+	if err != nil {
+		return ShardEntry{}, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return ShardEntry{}, err
+	}
+	if err := os.WriteFile(path, encrypted, 0o600); err != nil {
+		return ShardEntry{}, err
+	}
+	return ShardEntry{
+		Service: shard.Service,
+		Kind:    shard.Kind,
+		Account: shard.Account,
+		Path:    shard.Path,
+		Rows:    shard.Rows,
+		SHA256:  hash,
+		Bytes:   int64(len(encrypted)),
+	}, nil
+}
+
+func decryptShardFile(cfg Config, shard ShardEntry) ([]byte, error) {
+	path, err := resolveShardPath(cfg.Repo, shard.Path)
+	if err != nil {
+		return nil, err
+	}
+	ciphertext, err := os.ReadFile(path) // #nosec G304 -- resolveShardPath confines manifest-controlled shard paths to data/*.age inside the backup repo.
+	if err != nil {
+		return nil, err
+	}
+	return decryptShard(ciphertext, cfg.Identity)
+}
+
+func resolveShardPath(repo, rel string) (string, error) {
+	clean := path.Clean(strings.TrimSpace(rel))
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || path.IsAbs(clean) {
+		return "", fmt.Errorf("backup shard path escapes backup root: %s", rel)
+	}
+	if !strings.HasPrefix(clean, "data/") || !strings.HasSuffix(clean, ".age") {
+		return "", fmt.Errorf("invalid backup shard path: %s", rel)
+	}
+	full := filepath.Join(repo, filepath.FromSlash(clean))
+	root := filepath.Clean(filepath.Join(repo, "data"))
+	parent := filepath.Clean(filepath.Dir(full))
+	if parent != root && !strings.HasPrefix(parent, root+string(filepath.Separator)) {
+		return "", fmt.Errorf("backup shard path escapes backup root: %s", rel)
+	}
+	return full, nil
+}
+
+func encodeJSONL(rows any) ([]byte, int, error) {
+	value := reflect.ValueOf(rows)
+	if value.Kind() != reflect.Slice {
+		return nil, 0, fmt.Errorf("unsupported JSONL rows %T", rows)
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	for i := 0; i < value.Len(); i++ {
+		if err := enc.Encode(value.Index(i).Interface()); err != nil {
+			return nil, 0, err
+		}
+	}
+	return buf.Bytes(), value.Len(), nil
+}
+
+func DecodeJSONL[T any](plaintext []byte, out *[]T) error {
+	scanner := bufio.NewScanner(bytes.NewReader(plaintext))
+	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+	for scanner.Scan() {
+		var value T
+		if err := json.Unmarshal(scanner.Bytes(), &value); err != nil {
+			return err
+		}
+		*out = append(*out, value)
+	}
+	return scanner.Err()
+}
+
+func countJSONLLines(plaintext []byte) (int, error) {
+	scanner := bufio.NewScanner(bytes.NewReader(plaintext))
+	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+	count := 0
+	for scanner.Scan() {
+		if len(bytes.TrimSpace(scanner.Bytes())) > 0 {
+			count++
+		}
+	}
+	return count, scanner.Err()
+}
+
+func readManifest(repo string) (Manifest, error) {
+	data, err := os.ReadFile(filepath.Join(repo, "manifest.json")) // #nosec G304 -- repo is the configured local backup repository.
+	if err != nil {
+		return Manifest{}, err
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return Manifest{}, err
+	}
+	return manifest, nil
+}
+
+func writeManifest(repo string, manifest Manifest) error {
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	return os.WriteFile(filepath.Join(repo, "manifest.json"), data, 0o600)
+}
+
+func (m Manifest) entry(path string) (ShardEntry, bool) {
+	for _, shard := range m.Shards {
+		if shard.Path == path {
+			return shard, true
+		}
+	}
+	return ShardEntry{}, false
+}
+
+func equivalentManifest(a, b Manifest) bool {
+	if a.Format != b.Format ||
+		a.App != b.App ||
+		a.Encrypted != b.Encrypted ||
+		!sameStrings(a.Recipients, b.Recipients) ||
+		!sameStrings(a.Services, b.Services) ||
+		!sameStrings(a.Accounts, b.Accounts) ||
+		!reflect.DeepEqual(a.Counts, b.Counts) ||
+		len(a.Shards) != len(b.Shards) {
+		return false
+	}
+	for i := range a.Shards {
+		left, right := a.Shards[i], b.Shards[i]
+		left.Bytes, right.Bytes = 0, 0
+		if left != right {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizedStrings(values []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func sameStrings(a, b []string) bool {
+	a, b = normalizedStrings(a), normalizedStrings(b)
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func cloneCounts(in map[string]int) map[string]int {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]int, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func removeStaleShards(repo string, shards []ShardEntry) error {
+	keep := map[string]struct{}{}
+	for _, shard := range shards {
+		keep[filepath.Clean(filepath.Join(repo, filepath.FromSlash(shard.Path)))] = struct{}{}
+	}
+	root := filepath.Join(repo, "data")
+	if _, err := os.Stat(root); os.IsNotExist(err) {
+		return nil
+	}
+	var stale []string
+	if err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d == nil || d.IsDir() {
+			return err
+		}
+		if !strings.HasSuffix(path, ".age") {
+			return nil
+		}
+		clean := filepath.Clean(path)
+		if _, ok := keep[clean]; ok {
+			return nil
+		}
+		stale = append(stale, clean)
+		return nil
+	}); err != nil {
+		return err
+	}
+	for _, path := range stale {
+		rel, err := filepath.Rel(root, path)
+		if err != nil || rel == "." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+			return fmt.Errorf("stale shard path escapes backup root: %s", path)
+		}
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeBackupReadme(repo string) error {
+	path := filepath.Join(repo, "README.md")
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
+	const body = `# backup-gog
+
+Encrypted Git backup for Google account data exported by gog.
+
+This repository is written by ` + "`gog backup push`" + `. It is safe to keep on
+GitHub because service payloads are encrypted before Git sees them.
+
+## Layout
+
+` + "```text" + `
+README.md
+manifest.json
+data/<service>/<account-hash>/...
+` + "```" + `
+
+` + "`manifest.json`" + ` is cleartext and contains format version, export time,
+public age recipients, service names, account hashes, shard paths, row counts,
+encrypted byte sizes, and plaintext hashes used for verification. Email bodies,
+subjects, senders, Drive filenames, contacts, event titles, and other private
+Google data stay inside encrypted ` + "`*.jsonl.gz.age`" + ` shards.
+
+## Security Model
+
+Shard contents are deterministic JSONL, gzip-compressed with a fixed timestamp,
+and encrypted with age for every configured public recipient. The local
+` + "`~/.gog/age.key`" + ` identity is required to decrypt.
+
+Git can still see manifest metadata: export time, public recipients, service
+names, account hashes, shard paths, encrypted byte sizes, plaintext shard
+hashes, backup cadence, and which encrypted shards changed. Git cannot read
+Google content without an age identity.
+
+Anyone who can push to this repository can replace encrypted backup data with
+different data encrypted to your public recipient. Keep repository write access
+restricted and review unexpected backup commits. If an age identity is
+compromised, remove its public recipient and push a new backup; old Git history
+may still contain shards decryptable by the compromised key.
+
+## Push
+
+` + "```bash" + `
+gog backup push --services gmail
+` + "```" + `
+
+The command pulls/rebases this checkout, exports selected Google services,
+writes encrypted shards, updates the manifest, commits, and pushes this
+repository.
+
+## Verify
+
+` + "```bash" + `
+gog backup verify
+` + "```" + `
+
+` + "`verify`" + ` decrypts every shard with the local age identity and verifies the
+manifest hashes and row counts. It does not restore or write Google data.
+
+## Recovery
+
+Install gog, clone this repo to the path in ` + "`~/.gog/backup.json`" + `,
+restore the local age identity file, then run:
+
+` + "```bash" + `
+gog backup verify
+` + "```" + `
+
+Do not commit the age identity. Only public ` + "`age1...`" + ` recipients belong in
+config; ` + "`AGE-SECRET-KEY-...`" + ` values must stay local or in a password manager.
+`
+	return os.WriteFile(path, []byte(body), 0o600)
+}

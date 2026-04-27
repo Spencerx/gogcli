@@ -64,6 +64,7 @@ type CLI struct {
 	Whoami   PeopleMeCmd      `cmd:"" name:"whoami" aliases:"who-am-i" help:"Show your profile (alias for 'people me')"`
 
 	Auth       AuthCmd               `cmd:"" help:"Auth and credentials"`
+	Backup     BackupCmd             `cmd:"" help:"Encrypted Google account backups"`
 	Groups     GroupsCmd             `cmd:"" aliases:"group" help:"Google Groups"`
 	Admin      AdminCmd              `cmd:"" help:"Google Workspace Admin (Directory API) - requires domain-wide delegation"`
 	Drive      DriveCmd              `cmd:"" aliases:"drv" help:"Google Drive"`

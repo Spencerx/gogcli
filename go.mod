@@ -3,6 +3,7 @@ module github.com/steipete/gogcli
 go 1.26.2
 
 require (
+	filippo.io/age v1.3.1
 	github.com/99designs/keyring v1.2.2
 	github.com/alecthomas/kong v1.15.0
 	github.com/muesli/termenv v0.16.0
@@ -19,6 +20,7 @@ require (
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

@@ -48,6 +48,13 @@ Generated from `gog schema --json`.
 - `gog auth tokens export <email> [flags]` - Export a refresh token to a file (contains secrets)
 - `gog auth tokens import <inPath>` - Import a refresh token file into keyring (contains secrets)
 - `gog auth tokens list` - List stored tokens (by key only)
+- `gog backup <command> [flags]` - Encrypted Google account backups
+- `gog backup gmail <command>` - Gmail backup operations
+- `gog backup gmail push [flags]` - Export Gmail into encrypted backup shards
+- `gog backup init [flags]` - Initialize encrypted backup config and repository
+- `gog backup push [flags]` - Export services into encrypted backup shards
+- `gog backup status [flags]` - Inspect backup manifest without decrypting shards
+- `gog backup verify [flags]` - Decrypt and verify all backup shards
 - `gog calendar (cal) <command> [flags]` - Google Calendar
 - `gog calendar (cal) acl (permissions,perms) <calendarId> [flags]` - List calendar ACL
 - `gog calendar (cal) alias <command>` - Manage calendar aliases
@@ -357,6 +364,12 @@ Generated from `gog schema --json`.
 - `gog sheets (sheet) <command> [flags]` - Google Sheets
 - `gog sheets (sheet) add-tab (add-sheet) <spreadsheetId> <tabName> [flags]` - Add a new tab/sheet to a spreadsheet
 - `gog sheets (sheet) append (add) <spreadsheetId> <range> [<values> ...] [flags]` - Append values to a range
+- `gog sheets (sheet) chart (charts) <command>` - Manage spreadsheet charts
+- `gog sheets (sheet) chart (charts) create (add,new) --spec-json=STRING <spreadsheetId> [flags]` - Create a chart from a JSON spec
+- `gog sheets (sheet) chart (charts) delete (rm,remove,del) <spreadsheetId> <chartId>` - Delete a chart
+- `gog sheets (sheet) chart (charts) get (show,info) <spreadsheetId> <chartId>` - Get full chart definition (spec + position)
+- `gog sheets (sheet) chart (charts) list <spreadsheetId>` - List charts in a spreadsheet
+- `gog sheets (sheet) chart (charts) update (edit,set) --spec-json=STRING <spreadsheetId> <chartId>` - Update a chart spec
 - `gog sheets (sheet) clear <spreadsheetId> <range>` - Clear values in a range
 - `gog sheets (sheet) copy (cp,duplicate) <spreadsheetId> <title> [flags]` - Copy a Google Sheet
 - `gog sheets (sheet) create (new) <title> [flags]` - Create a new spreadsheet

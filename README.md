@@ -9,6 +9,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 
 - **Gmail** - search threads/messages, send mail, view attachments, manage labels/drafts/filters/delegation/vacation settings, auto-reply once to matching mail, modify single messages, export filters, inspect history, and run Pub/Sub watch webhooks
 - **Email tracking** - track opens for `gog gmail send --track` with a small Cloudflare Worker backend
+- **Encrypted backups** - export Google account data to age-encrypted Git shards (`gog backup`, Gmail first)
 - **Calendar** - list/create/update/delete events, manage invitations, aliases, subscriptions, team calendars, free/busy/conflicts, propose new times, focus/OOO/working-location events, recurrence, and reminders
 - **Classroom** - manage courses, roster, coursework/materials, submissions, announcements, topics, invitations, guardians, profiles
 - **Chat** - list/find/create spaces, list messages/threads, send messages and DMs, and manage emoji reactions (Workspace-only)
@@ -719,6 +720,38 @@ Gmail watch (Pub/Sub push):
 - Full flow + payload details: `docs/watch.md`.
 - `watch serve --fetch-delay` defaults to `3s` and helps avoid Gmail History indexing races after push delivery.
 - `watch serve --exclude-labels` defaults to `SPAM,TRASH`; IDs are case-sensitive.
+
+### Encrypted Backup
+
+```bash
+gog backup init --repo ~/Projects/backup-gog --remote https://github.com/steipete/backup-gog.git
+gog backup push --services gmail --account you@gmail.com
+gog backup status
+gog backup verify
+```
+
+For a bounded first run:
+
+```bash
+gog backup push --services gmail --account you@gmail.com --query 'newer_than:7d' --max 25
+```
+
+Backups use age-encrypted JSONL gzip shards under `data/`. `gog` stores the
+private age identity locally at `~/.gog/age.key`; GitHub only receives public
+`age1...` recipients, `manifest.json`, and encrypted `*.jsonl.gz.age` payloads.
+The private `AGE-SECRET-KEY-...` value must stay local or in a password manager.
+
+`manifest.json` is intentionally cleartext for cheap status and verification.
+It exposes metadata: export time, service names, account hashes, shard paths,
+row counts, encrypted byte sizes, plaintext verification hashes, backup cadence,
+and which shards changed. It does not contain email bodies, subjects, senders,
+recipients, raw MIME, labels, Drive filenames, contacts, or event titles.
+
+Security boundary: GitHub cannot read Google content without the age identity.
+Repository writers can still replace backup contents with different encrypted
+data, so keep write access tight and review unexpected backup commits. If the
+age identity leaks, rotate recipients and re-encrypt; old Git history may still
+contain shards decryptable with the leaked key. See `docs/backup.md`.
 
 ### Email Tracking
 
