@@ -32,11 +32,13 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"files": []map[string]any{
 					{
-						"id":           "f1",
-						"name":         "Doc",
-						"mimeType":     "application/pdf",
-						"size":         "1024",
-						"modifiedTime": "2025-12-12T14:37:47Z",
+						"id":            "f1",
+						"name":          "Doc",
+						"mimeType":      "application/pdf",
+						"size":          "1024",
+						"modifiedTime":  "2025-12-12T14:37:47Z",
+						"hasThumbnail":  true,
+						"thumbnailLink": "https://thumb.example/f1",
 						"owners": []map[string]any{
 							{"emailAddress": "owner@example.com"},
 						},
@@ -128,6 +130,9 @@ func TestDriveLsCmd_TextAndJSON(t *testing.T) {
 	}
 	if parsed.NextPageToken != "npt" || len(parsed.Files) != 2 {
 		t.Fatalf("unexpected json: %#v", parsed)
+	}
+	if !parsed.Files[0].HasThumbnail || parsed.Files[0].ThumbnailLink != "https://thumb.example/f1" {
+		t.Fatalf("expected thumbnail fields in json, got %#v", parsed.Files[0])
 	}
 
 	// Plain mode: stable TSV (tabs preserved).
