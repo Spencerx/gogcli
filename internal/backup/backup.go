@@ -5,8 +5,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -41,12 +44,13 @@ type ShardEntry struct {
 }
 
 type PlainShard struct {
-	Service   string
-	Kind      string
-	Account   string
-	Path      string
-	Rows      int
-	Plaintext []byte
+	Service       string
+	Kind          string
+	Account       string
+	Path          string
+	Rows          int
+	Plaintext     []byte
+	PlaintextPath string
 }
 
 type Snapshot struct {
@@ -90,6 +94,7 @@ func Init(ctx context.Context, opts Options) (Config, string, error) {
 }
 
 func PushSnapshot(ctx context.Context, snapshot Snapshot, opts Options) (Result, error) {
+	defer cleanupPlainShardFiles(snapshot)
 	cfg, err := ResolveOptions(opts)
 	if err != nil {
 		return Result{}, err
@@ -300,7 +305,10 @@ func writeShard(cfg Config, old Manifest, shard PlainShard, reuseEncrypted bool)
 	if strings.TrimSpace(shard.Service) == "" {
 		return ShardEntry{}, fmt.Errorf("backup shard service is required")
 	}
-	hash := sha256Hex(shard.Plaintext)
+	hash, err := shardPlaintextHash(shard)
+	if err != nil {
+		return ShardEntry{}, err
+	}
 	path, err := resolveShardPath(cfg.Repo, shard.Path)
 	if err != nil {
 		return ShardEntry{}, err
@@ -311,14 +319,11 @@ func writeShard(cfg Config, old Manifest, shard PlainShard, reuseEncrypted bool)
 			return oldEntry, nil
 		}
 	}
-	encrypted, _, err := encryptShard(shard.Plaintext, cfg.Recipients)
-	if err != nil {
-		return ShardEntry{}, err
-	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return ShardEntry{}, err
 	}
-	if err := os.WriteFile(path, encrypted, 0o600); err != nil {
+	bytesWritten, err := encryptShardToFile(shardPlaintextReader(shard), path, cfg.Recipients)
+	if err != nil {
 		return ShardEntry{}, err
 	}
 	return ShardEntry{
@@ -328,8 +333,43 @@ func writeShard(cfg Config, old Manifest, shard PlainShard, reuseEncrypted bool)
 		Path:    shard.Path,
 		Rows:    shard.Rows,
 		SHA256:  hash,
-		Bytes:   int64(len(encrypted)),
+		Bytes:   bytesWritten,
 	}, nil
+}
+
+func cleanupPlainShardFiles(snapshot Snapshot) {
+	for _, shard := range snapshot.Shards {
+		if strings.TrimSpace(shard.PlaintextPath) != "" {
+			_ = os.Remove(shard.PlaintextPath)
+		}
+	}
+}
+
+func shardPlaintextHash(shard PlainShard) (string, error) {
+	if strings.TrimSpace(shard.PlaintextPath) == "" {
+		return sha256Hex(shard.Plaintext), nil
+	}
+	f, err := os.Open(shard.PlaintextPath) // #nosec G304 -- PlaintextPath is created by gog as a temporary backup shard file.
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func shardPlaintextReader(shard PlainShard) func() (io.ReadCloser, error) {
+	if strings.TrimSpace(shard.PlaintextPath) == "" {
+		return func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(shard.Plaintext)), nil
+		}
+	}
+	return func() (io.ReadCloser, error) {
+		return os.Open(shard.PlaintextPath) // #nosec G304 -- PlaintextPath is created by gog as a temporary backup shard file.
+	}
 }
 
 func decryptShardFile(cfg Config, shard ShardEntry) ([]byte, error) {

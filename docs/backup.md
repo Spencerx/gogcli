@@ -264,10 +264,12 @@ directory (`gogcli/backup/gmail/<account-hash>/`). Message-list page checkpoints
 live under `list-v1/`, and fetched raw messages live under `raw-v1/`. Raw-message
 cache files store the same row that will be encrypted into shards and are keyed
 by a SHA-256 of the Gmail message ID, so rerunning after an interruption can
-reuse already fetched messages. Long Gmail runs report list/fetch counters to
-stderr while stdout stays parseable. `--gmail-refresh-cache` forces a refetch.
-The cache is plaintext local data; clear it if the machine should not retain
-local mail copies outside the encrypted backup/export locations.
+reuse already fetched messages. The encrypted message shards are streamed from
+that cache in temporary per-shard files, so a full mailbox run does not retain
+every raw message in RAM. Long Gmail runs report list, fetch, and shard-build
+counters to stderr while stdout stays parseable. `--gmail-refresh-cache` forces
+a refetch. The cache is plaintext local data; clear it if the machine should not
+retain local mail copies outside the encrypted backup/export locations.
 
 `--include-spam-trash` defaults to true. Use `--query` and `--max` for bounded
 test exports; omit them for a full mailbox scan.

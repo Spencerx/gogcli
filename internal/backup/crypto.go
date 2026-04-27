@@ -77,6 +77,74 @@ func encryptShard(plaintext []byte, recipientStrings []string) ([]byte, string, 
 	return encrypted.Bytes(), sha256Hex(plaintext), nil
 }
 
+func encryptShardToFile(openPlaintext func() (io.ReadCloser, error), dst string, recipientStrings []string) (int64, error) {
+	recipients, err := parseRecipients(recipientStrings)
+	if err != nil {
+		return 0, err
+	}
+	in, err := openPlaintext()
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = in.Close() }()
+	tmp, err := os.CreateTemp(filepath.Dir(dst), ".shard-*.age")
+	if err != nil {
+		return 0, err
+	}
+	tmpPath := tmp.Name()
+	cw := &countingWriter{w: tmp}
+	ageWriter, err := age.Encrypt(cw, recipients...)
+	if err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return 0, err
+	}
+	gz := gzip.NewWriter(ageWriter)
+	gz.ModTime = time.Unix(0, 0).UTC()
+	if _, err := io.Copy(gz, in); err != nil {
+		_ = gz.Close()
+		_ = ageWriter.Close()
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return 0, err
+	}
+	if err := gz.Close(); err != nil {
+		_ = ageWriter.Close()
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return 0, err
+	}
+	if err := ageWriter.Close(); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return 0, err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return 0, err
+	}
+	if err := os.Chmod(tmpPath, 0o600); err != nil {
+		_ = os.Remove(tmpPath)
+		return 0, err
+	}
+	if err := os.Rename(tmpPath, dst); err != nil {
+		_ = os.Remove(tmpPath)
+		return 0, err
+	}
+	return cw.n, nil
+}
+
+type countingWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (w *countingWriter) Write(p []byte) (int, error) {
+	n, err := w.w.Write(p)
+	w.n += int64(n)
+	return n, err
+}
+
 func decryptShard(ciphertext []byte, identityPath string) ([]byte, error) {
 	data, err := os.ReadFile(expandHome(identityPath)) // #nosec G304 -- path is the configured local age identity file.
 	if err != nil {

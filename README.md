@@ -754,9 +754,10 @@ content by default. Non-Google binary Drive files are metadata-only unless
 `--drive-binary-contents` is set. `--drive-content-timeout` turns a stuck
 per-file export into an encrypted error row instead of wedging the run. Gmail
 raw-message fetches and message-list pages use a local cache by default so
-interrupted full-mailbox backups can resume; progress is written to stderr
-while stdout stays parseable. Use `--gmail-refresh-cache` to force a refetch.
-Workspace inventories
+interrupted full-mailbox backups can resume. Full Gmail runs build encrypted
+message shards from cached messages instead of keeping the whole mailbox in
+memory; progress is written to stderr while stdout stays parseable. Use
+`--gmail-refresh-cache` to force a refetch. Workspace inventories
 Docs/Sheets/Slides and backs up Forms/responses discovered through Drive; add
 `--workspace-native` for full native Docs/Sheets/Slides API JSON.
 Optional Workspace-only services use `--best-effort` by default, recording

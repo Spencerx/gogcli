@@ -301,6 +301,55 @@ func TestListGmailBackupMessageIDsMarksMaxLimitedRunComplete(t *testing.T) {
 	}
 }
 
+func TestBuildGmailMessageShardsFromCacheWritesPlaintextPaths(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	accountHash := "accthash"
+	messages := []gmailBackupMessage{
+		{ID: "april-b", InternalDate: mustUnixMilli(t, "2026-04-02T10:00:00Z"), Raw: "raw-b"},
+		{ID: "april-a", InternalDate: mustUnixMilli(t, "2026-04-01T10:00:00Z"), Raw: "raw-a"},
+		{ID: "march-a", InternalDate: mustUnixMilli(t, "2026-03-01T10:00:00Z"), Raw: "raw-m"},
+	}
+	for _, message := range messages {
+		if err := writeGmailBackupMessageCache(accountHash, message); err != nil {
+			t.Fatalf("writeGmailBackupMessageCache: %v", err)
+		}
+	}
+	shards, err := buildGmailMessageShardsFromCache(context.Background(), gmailBackupOptions{
+		AccountHash:  accountHash,
+		ShardMaxRows: 1,
+	}, []string{"april-b", "april-a", "march-a"})
+	if err != nil {
+		t.Fatalf("buildGmailMessageShardsFromCache: %v", err)
+	}
+	if len(shards) != 3 {
+		t.Fatalf("len(shards) = %d, want 3", len(shards))
+	}
+	wantPaths := []string{
+		"data/gmail/accthash/messages/2026/03/part-0001.jsonl.gz.age",
+		"data/gmail/accthash/messages/2026/04/part-0001.jsonl.gz.age",
+		"data/gmail/accthash/messages/2026/04/part-0002.jsonl.gz.age",
+	}
+	for i, want := range wantPaths {
+		if shards[i].Path != want {
+			t.Fatalf("shards[%d].Path = %q, want %q", i, shards[i].Path, want)
+		}
+		if shards[i].PlaintextPath == "" {
+			t.Fatalf("shards[%d] missing PlaintextPath", i)
+		}
+		data, err := os.ReadFile(shards[i].PlaintextPath)
+		if err != nil {
+			t.Fatalf("read plaintext shard: %v", err)
+		}
+		var rows []gmailBackupMessage
+		if err := backup.DecodeJSONL(data, &rows); err != nil {
+			t.Fatalf("DecodeJSONL: %v", err)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("rows len = %d, want 1", len(rows))
+		}
+	}
+}
+
 func TestFetchBackupDriveCollaborationCollectsMetadataAndErrors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

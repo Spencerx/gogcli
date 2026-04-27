@@ -58,6 +58,40 @@ func TestPushSnapshotAndVerify(t *testing.T) {
 	}
 }
 
+func TestPushSnapshotEncryptsAndCleansPlaintextPath(t *testing.T) {
+	ctx, _, config, _ := initTestBackup(t)
+	tempPath := filepath.Join(t.TempDir(), "messages.jsonl")
+	if err := os.WriteFile(tempPath, []byte("{\"id\":\"m1\",\"raw\":\"private\"}\n"), 0o600); err != nil {
+		t.Fatalf("write plaintext path: %v", err)
+	}
+	shard := PlainShard{
+		Service:       "gmail",
+		Kind:          "messages",
+		Account:       "acct",
+		Path:          "data/gmail/acct/messages/2026/04/part-0001.jsonl.gz.age",
+		Rows:          1,
+		PlaintextPath: tempPath,
+	}
+	if _, err := PushSnapshot(ctx, Snapshot{
+		Services: []string{"gmail"},
+		Accounts: []string{"acct"},
+		Counts:   map[string]int{"gmail.messages": 1},
+		Shards:   []PlainShard{shard},
+	}, Options{ConfigPath: config, Push: false}); err != nil {
+		t.Fatalf("PushSnapshot: %v", err)
+	}
+	if _, err := os.Stat(tempPath); !os.IsNotExist(err) {
+		t.Fatalf("plaintext temp file still exists or stat failed: %v", err)
+	}
+	verify, err := Verify(ctx, Options{ConfigPath: config})
+	if err != nil {
+		t.Fatalf("Verify: %v", err)
+	}
+	if verify.Counts["gmail.messages"] != 1 {
+		t.Fatalf("unexpected verify counts: %+v", verify.Counts)
+	}
+}
+
 func TestCatAndDecryptSnapshotVerifyPlaintext(t *testing.T) {
 	ctx, repo, config, _ := initTestBackup(t)
 	shardPath := "data/gmail/acct/messages/2026/04/part-0001.jsonl.gz.age"

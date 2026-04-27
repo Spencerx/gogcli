@@ -81,27 +81,45 @@ func buildGmailBackupSnapshot(ctx context.Context, flags *RootFlags, opts gmailB
 	if err != nil {
 		return backup.Snapshot{}, err
 	}
-	messages, err := fetchGmailBackupMessages(ctx, svc, opts)
-	if err != nil {
-		return backup.Snapshot{}, err
-	}
 	shards := make([]backup.PlainShard, 0, 1)
 	labelShard, err := backup.NewJSONLShard(backupServiceGmail, "labels", accountHash, fmt.Sprintf("data/gmail/%s/labels.jsonl.gz.age", accountHash), labels)
 	if err != nil {
 		return backup.Snapshot{}, err
 	}
 	shards = append(shards, labelShard)
-	messageShards, err := buildGmailMessageShards(accountHash, messages, opts.ShardMaxRows)
-	if err != nil {
-		return backup.Snapshot{}, err
+	var messageCount int
+	if opts.CacheMessages {
+		ids, listErr := listGmailBackupMessageIDs(ctx, svc, opts)
+		if listErr != nil {
+			return backup.Snapshot{}, listErr
+		}
+		if cacheErr := ensureGmailBackupMessageCache(ctx, svc, opts, ids); cacheErr != nil {
+			return backup.Snapshot{}, cacheErr
+		}
+		messageShards, shardErr := buildGmailMessageShardsFromCache(ctx, opts, ids)
+		if shardErr != nil {
+			return backup.Snapshot{}, shardErr
+		}
+		shards = append(shards, messageShards...)
+		messageCount = len(ids)
+	} else {
+		messages, err := fetchGmailBackupMessages(ctx, svc, opts)
+		if err != nil {
+			return backup.Snapshot{}, err
+		}
+		messageShards, err := buildGmailMessageShards(accountHash, messages, opts.ShardMaxRows)
+		if err != nil {
+			return backup.Snapshot{}, err
+		}
+		shards = append(shards, messageShards...)
+		messageCount = len(messages)
 	}
-	shards = append(shards, messageShards...)
 	return backup.Snapshot{
 		Services: []string{backupServiceGmail},
 		Accounts: []string{accountHash},
 		Counts: map[string]int{
 			"gmail.labels":   len(labels),
-			"gmail.messages": len(messages),
+			"gmail.messages": messageCount,
 		},
 		Shards: shards,
 	}, nil
@@ -138,36 +156,87 @@ func fetchGmailBackupMessages(ctx context.Context, svc *gmail.Service, opts gmai
 	if err != nil {
 		return nil, err
 	}
+	if !opts.CacheMessages {
+		return fetchGmailBackupMessagesDirect(ctx, svc, ids)
+	}
+	if err := ensureGmailBackupMessageCache(ctx, svc, opts, ids); err != nil {
+		return nil, err
+	}
+	ordered := make([]gmailBackupMessage, 0, len(ids))
+	for _, id := range ids {
+		msg, ok, err := readGmailBackupMessageCache(opts.AccountHash, id)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, fmt.Errorf("gmail message %s missing from backup cache", id)
+		}
+		ordered = append(ordered, msg)
+	}
+	return ordered, nil
+}
+
+func fetchGmailBackupMessagesDirect(ctx context.Context, svc *gmail.Service, ids []string) ([]gmailBackupMessage, error) {
+	gmailBackupProgressf(ctx, "backup gmail fetch\tqueued=%d", len(ids))
+	out := make([]gmailBackupMessage, 0, len(ids))
+	for i, id := range ids {
+		msg, err := svc.Users.Messages.Get("me", id).
+			Format(gmailFormatRaw).
+			Fields("id,threadId,historyId,internalDate,labelIds,sizeEstimate,raw").
+			Context(ctx).
+			Do()
+		if err != nil {
+			return nil, fmt.Errorf("gmail message %s: %w", id, err)
+		}
+		if strings.TrimSpace(msg.Raw) == "" {
+			return nil, fmt.Errorf("gmail message %s returned empty raw payload", id)
+		}
+		out = append(out, gmailBackupMessage{
+			ID:           msg.Id,
+			ThreadID:     msg.ThreadId,
+			HistoryID:    formatHistoryID(msg.HistoryId),
+			InternalDate: msg.InternalDate,
+			LabelIDs:     append([]string(nil), msg.LabelIds...),
+			SizeEstimate: msg.SizeEstimate,
+			Raw:          msg.Raw,
+		})
+		done := i + 1
+		if done == len(ids) || done%100 == 0 {
+			gmailBackupProgressf(ctx, "backup gmail fetch\t%d/%d\tfetched=%d\tcache=0", done, len(ids), done)
+		}
+	}
+	return out, nil
+}
+
+func ensureGmailBackupMessageCache(ctx context.Context, svc *gmail.Service, opts gmailBackupOptions, ids []string) error {
 	gmailBackupProgressf(ctx, "backup gmail fetch\tqueued=%d", len(ids))
 	const maxConcurrency = 8
 	sem := make(chan struct{}, maxConcurrency)
 	type result struct {
-		index int
-		msg   gmailBackupMessage
 		cache bool
 		err   error
 	}
 	results := make(chan result, len(ids))
 	var wg sync.WaitGroup
-	for i, id := range ids {
+	for _, id := range ids {
 		wg.Add(1)
-		go func(index int, messageID string) {
+		go func(messageID string) {
 			defer wg.Done()
 			select {
 			case sem <- struct{}{}:
 				defer func() { <-sem }()
 			case <-ctx.Done():
-				results <- result{index: index, err: ctx.Err()}
+				results <- result{err: ctx.Err()}
 				return
 			}
 			if opts.CacheMessages && !opts.RefreshCache {
-				msg, ok, err := readGmailBackupMessageCache(opts.AccountHash, messageID)
+				_, ok, err := readGmailBackupMessageCache(opts.AccountHash, messageID)
 				if err != nil {
-					results <- result{index: index, err: err}
+					results <- result{err: err}
 					return
 				}
 				if ok {
-					results <- result{index: index, msg: msg, cache: true}
+					results <- result{cache: true}
 					return
 				}
 			}
@@ -177,11 +246,11 @@ func fetchGmailBackupMessages(ctx context.Context, svc *gmail.Service, opts gmai
 				Context(ctx).
 				Do()
 			if err != nil {
-				results <- result{index: index, err: fmt.Errorf("gmail message %s: %w", messageID, err)}
+				results <- result{err: fmt.Errorf("gmail message %s: %w", messageID, err)}
 				return
 			}
 			if strings.TrimSpace(msg.Raw) == "" {
-				results <- result{index: index, err: fmt.Errorf("gmail message %s returned empty raw payload", messageID)}
+				results <- result{err: fmt.Errorf("gmail message %s returned empty raw payload", messageID)}
 				return
 			}
 			backupMsg := gmailBackupMessage{
@@ -195,18 +264,17 @@ func fetchGmailBackupMessages(ctx context.Context, svc *gmail.Service, opts gmai
 			}
 			if opts.CacheMessages {
 				if err := writeGmailBackupMessageCache(opts.AccountHash, backupMsg); err != nil {
-					results <- result{index: index, err: err}
+					results <- result{err: err}
 					return
 				}
 			}
-			results <- result{index: index, msg: backupMsg}
-		}(i, id)
+			results <- result{}
+		}(id)
 	}
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
-	ordered := make([]gmailBackupMessage, len(ids))
 	var firstErr error
 	done := 0
 	cacheHits := 0
@@ -215,7 +283,6 @@ func fetchGmailBackupMessages(ctx context.Context, svc *gmail.Service, opts gmai
 		if res.err != nil && firstErr == nil {
 			firstErr = res.err
 		}
-		ordered[res.index] = res.msg
 		done++
 		if res.cache {
 			cacheHits++
@@ -227,9 +294,9 @@ func fetchGmailBackupMessages(ctx context.Context, svc *gmail.Service, opts gmai
 		}
 	}
 	if firstErr != nil {
-		return nil, firstErr
+		return firstErr
 	}
-	return ordered, nil
+	return nil
 }
 
 func readGmailBackupMessageCache(accountHash, messageID string) (gmailBackupMessage, bool, error) {
@@ -480,17 +547,157 @@ func gmailBackupProgressf(ctx context.Context, format string, args ...any) {
 	u.Err().Printf(format, args...)
 }
 
+type gmailBackupMessageRef struct {
+	ID           string
+	InternalDate int64
+}
+
+func buildGmailMessageShardsFromCache(ctx context.Context, opts gmailBackupOptions, ids []string) ([]backup.PlainShard, error) {
+	if opts.ShardMaxRows <= 0 {
+		opts.ShardMaxRows = 1000
+	}
+	tempDir, ok := gmailBackupTempShardDir(opts.AccountHash)
+	if !ok {
+		return nil, fmt.Errorf("gmail backup temp shard directory unavailable")
+	}
+	if err := os.RemoveAll(tempDir); err != nil {
+		return nil, fmt.Errorf("clear gmail backup temp shard dir: %w", err)
+	}
+	if err := os.MkdirAll(tempDir, 0o700); err != nil {
+		return nil, fmt.Errorf("create gmail backup temp shard dir: %w", err)
+	}
+	buckets := map[string][]gmailBackupMessageRef{}
+	for i, id := range ids {
+		msg, ok, err := readGmailBackupMessageCache(opts.AccountHash, id)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, fmt.Errorf("gmail message %s missing from backup cache", id)
+		}
+		key := gmailBackupMessageMonthKey(msg.InternalDate)
+		buckets[key] = append(buckets[key], gmailBackupMessageRef{ID: msg.ID, InternalDate: msg.InternalDate})
+		done := i + 1
+		if done == len(ids) || done%5000 == 0 {
+			gmailBackupProgressf(ctx, "backup gmail shard-index\t%d/%d", done, len(ids))
+		}
+	}
+	keys := make([]string, 0, len(buckets))
+	for key := range buckets {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	shards := make([]backup.PlainShard, 0, len(keys))
+	shardCount := 0
+	for _, key := range keys {
+		refs := buckets[key]
+		sort.Slice(refs, func(i, j int) bool {
+			if refs[i].InternalDate == refs[j].InternalDate {
+				return refs[i].ID < refs[j].ID
+			}
+			return refs[i].InternalDate < refs[j].InternalDate
+		})
+		for part, start := 1, 0; start < len(refs); part, start = part+1, start+opts.ShardMaxRows {
+			end := start + opts.ShardMaxRows
+			if end > len(refs) {
+				end = len(refs)
+			}
+			rel := fmt.Sprintf("data/gmail/%s/messages/%s/part-%04d.jsonl.gz.age", opts.AccountHash, key, part)
+			shard, err := buildGmailMessageShardFromCache(opts.AccountHash, rel, tempDir, refs[start:end])
+			if err != nil {
+				return nil, err
+			}
+			shards = append(shards, shard)
+			shardCount++
+			if shardCount%25 == 0 || end == len(refs) {
+				gmailBackupProgressf(ctx, "backup gmail shard-build\tshards=%d\tmessages=%d/%d", shardCount, countGmailShardRows(shards), len(ids))
+			}
+		}
+	}
+	return shards, nil
+}
+
+func buildGmailMessageShardFromCache(accountHash, rel, tempDir string, refs []gmailBackupMessageRef) (backup.PlainShard, error) {
+	sum := sha256.Sum256([]byte(rel))
+	path := filepath.Join(tempDir, hex.EncodeToString(sum[:])+".jsonl")
+	f, err := os.Create(path) //nolint:gosec // path is derived from the OS cache dir and a hash of the shard path.
+	if err != nil {
+		return backup.PlainShard{}, fmt.Errorf("create gmail backup temp shard: %w", err)
+	}
+	enc := json.NewEncoder(f)
+	count := 0
+	for _, ref := range refs {
+		msg, ok, err := readGmailBackupMessageCache(accountHash, ref.ID)
+		if err != nil {
+			_ = f.Close()
+			_ = os.Remove(path)
+			return backup.PlainShard{}, err
+		}
+		if !ok {
+			_ = f.Close()
+			_ = os.Remove(path)
+			return backup.PlainShard{}, fmt.Errorf("gmail message %s missing from backup cache", ref.ID)
+		}
+		if err := enc.Encode(msg); err != nil {
+			_ = f.Close()
+			_ = os.Remove(path)
+			return backup.PlainShard{}, fmt.Errorf("encode gmail backup temp shard: %w", err)
+		}
+		count++
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(path)
+		return backup.PlainShard{}, fmt.Errorf("close gmail backup temp shard: %w", err)
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		_ = os.Remove(path)
+		return backup.PlainShard{}, fmt.Errorf("chmod gmail backup temp shard: %w", err)
+	}
+	return backup.PlainShard{
+		Service:       backupServiceGmail,
+		Kind:          "messages",
+		Account:       accountHash,
+		Path:          filepath.ToSlash(rel),
+		Rows:          count,
+		PlaintextPath: path,
+	}, nil
+}
+
+func countGmailShardRows(shards []backup.PlainShard) int {
+	total := 0
+	for _, shard := range shards {
+		total += shard.Rows
+	}
+	return total
+}
+
+func gmailBackupTempShardDir(accountHash string) (string, bool) {
+	accountHash = strings.TrimSpace(accountHash)
+	if accountHash == "" {
+		return "", false
+	}
+	dir, err := os.UserCacheDir()
+	if err != nil || strings.TrimSpace(dir) == "" {
+		return "", false
+	}
+	return filepath.Join(dir, "gogcli", "backup", "gmail", accountHash, "tmp-shards"), true
+}
+
+func gmailBackupMessageMonthKey(internalDate int64) string {
+	t := time.UnixMilli(internalDate).UTC()
+	if internalDate <= 0 {
+		t = time.Unix(0, 0).UTC()
+	}
+	return fmt.Sprintf("%04d/%02d", t.Year(), int(t.Month()))
+}
+
 func buildGmailMessageShards(accountHash string, messages []gmailBackupMessage, shardMaxRows int) ([]backup.PlainShard, error) {
 	if shardMaxRows <= 0 {
 		shardMaxRows = 1000
 	}
 	buckets := map[string][]gmailBackupMessage{}
 	for _, message := range messages {
-		t := time.UnixMilli(message.InternalDate).UTC()
-		if message.InternalDate <= 0 {
-			t = time.Unix(0, 0).UTC()
-		}
-		key := fmt.Sprintf("%04d/%02d", t.Year(), int(t.Month()))
+		key := gmailBackupMessageMonthKey(message.InternalDate)
 		buckets[key] = append(buckets[key], message)
 	}
 	keys := make([]string, 0, len(buckets))
