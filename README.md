@@ -747,10 +747,13 @@ private age identity locally at `~/.gog/age.key`; GitHub only receives public
 The private `AGE-SECRET-KEY-...` value must stay local or in a password manager.
 
 Supported backup services are `gmail`, `gmail-settings`, `calendar`,
-`contacts`, `tasks`, `drive`, `workspace`, `appscript`, `chat`, and
-`classroom`; `all` expands to those services. Drive now stores metadata plus
-exported Google-native file content by default. Non-Google binary Drive files
-are metadata-only unless `--drive-binary-contents` is set. Workspace inventories
+`contacts`, `tasks`, `drive`, `workspace`, `appscript`, `chat`, `classroom`,
+`groups`, `admin`, and `keep`; `all` expands to those services. Drive stores
+metadata, permissions, comments, revisions, and exported Google-native file
+content by default. Non-Google binary Drive files are metadata-only unless
+`--drive-binary-contents` is set. Gmail raw-message fetches use a local cache by
+default so interrupted full-mailbox backups can resume; use
+`--gmail-refresh-cache` to force a refetch. Workspace inventories
 Docs/Sheets/Slides and backs up Forms/responses discovered through Drive; add
 `--workspace-native` for full native Docs/Sheets/Slides API JSON.
 Optional Workspace-only services use `--best-effort` by default, recording

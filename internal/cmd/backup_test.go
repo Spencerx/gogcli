@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +12,7 @@ import (
 	"time"
 
 	"google.golang.org/api/drive/v3"
+	"google.golang.org/api/option"
 
 	"github.com/steipete/gogcli/internal/backup"
 )
@@ -104,12 +108,128 @@ func TestExpandBackupServicesAllIncludesWorkspaceAdapters(t *testing.T) {
 		"drive",
 		"gmail",
 		"gmail-settings",
+		"groups",
+		"admin",
+		"keep",
 		"tasks",
 		"workspace",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expanded all missing %q in %q", want, got)
 		}
+	}
+}
+
+func TestGmailBackupMessageCacheRoundTrips(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	message := gmailBackupMessage{
+		ID:           "msg-one",
+		ThreadID:     "thread-one",
+		InternalDate: mustUnixMilli(t, "2026-04-02T10:00:00Z"),
+		LabelIDs:     []string{"INBOX"},
+		Raw:          base64.RawURLEncoding.EncodeToString([]byte("Subject: Cached\r\n\r\nBody")),
+	}
+	if err := writeGmailBackupMessageCache("accthash", message); err != nil {
+		t.Fatalf("writeGmailBackupMessageCache: %v", err)
+	}
+	got, ok, err := readGmailBackupMessageCache("accthash", "msg-one")
+	if err != nil {
+		t.Fatalf("readGmailBackupMessageCache: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected cache hit")
+	}
+	if got.ID != message.ID || got.ThreadID != message.ThreadID || got.Raw != message.Raw {
+		t.Fatalf("cache round trip mismatch: %#v", got)
+	}
+	path, ok := gmailBackupMessageCachePath("accthash", "msg-one")
+	if !ok {
+		t.Fatal("expected cache path")
+	}
+	if strings.Contains(path, "msg-one") {
+		t.Fatalf("cache path should hash message IDs, got %q", path)
+	}
+}
+
+func TestGmailBackupMessageCacheRejectsWrongID(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	message := gmailBackupMessage{ID: "msg-one", Raw: "raw"}
+	if err := writeGmailBackupMessageCache("accthash", message); err != nil {
+		t.Fatalf("writeGmailBackupMessageCache: %v", err)
+	}
+	path, ok := gmailBackupMessageCachePath("accthash", "msg-one")
+	if !ok {
+		t.Fatal("expected cache path")
+	}
+	data, err := json.Marshal(gmailBackupMessage{ID: "other", Raw: "raw"})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if _, _, err := readGmailBackupMessageCache("accthash", "msg-one"); err == nil {
+		t.Fatal("expected wrong cache ID to fail")
+	}
+}
+
+func TestFetchBackupDriveCollaborationCollectsMetadataAndErrors(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/files/file1/permissions"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"permissions": []map[string]any{{"id": "perm1", "type": "user", "role": "reader", "emailAddress": "a@example.com"}},
+			})
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/files/file1/comments"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"comments": []map[string]any{{"id": "comment1", "content": "hello", "resolved": false}},
+			})
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/files/file1/revisions"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"revisions": []map[string]any{{"id": "rev1", "modifiedTime": "2026-04-02T10:00:00Z"}},
+			})
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/files/file2/permissions"):
+			http.Error(w, `{"error":{"message":"denied"}}`, http.StatusForbidden)
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/files/file2/comments"):
+			_ = json.NewEncoder(w).Encode(map[string]any{})
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/files/file2/revisions"):
+			_ = json.NewEncoder(w).Encode(map[string]any{})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	svc, err := drive.NewService(t.Context(),
+		option.WithoutAuthentication(),
+		option.WithHTTPClient(srv.Client()),
+		option.WithEndpoint(srv.URL+"/"),
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	got, counts := fetchBackupDriveCollaboration(t.Context(), svc, []driveBackupFile{
+		{File: &drive.File{Id: "file1"}},
+		{File: &drive.File{Id: "file2"}},
+	})
+	if counts["drive.permissions"] != 2 || counts["drive.comments"] != 1 || counts["drive.revisions"] != 1 || counts["drive.collab.errors"] != 1 {
+		t.Fatalf("unexpected counts: %#v", counts)
+	}
+	if got.Permissions[0].FileID != "file1" || got.Permissions[0].Permission.Id != "perm1" {
+		t.Fatalf("unexpected permission row: %#v", got.Permissions[0])
+	}
+	if got.Permissions[1].FileID != "file2" || got.Permissions[1].Error == "" {
+		t.Fatalf("expected file2 permission error row: %#v", got.Permissions[1])
+	}
+}
+
+func TestDomainFromAccount(t *testing.T) {
+	if got := domainFromAccount("Admin@Example.COM"); got != "Example.COM" {
+		t.Fatalf("domainFromAccount = %q", got)
+	}
+	if got := domainFromAccount("example.com"); got != "example.com" {
+		t.Fatalf("domainFromAccount without @ = %q", got)
 	}
 }
 

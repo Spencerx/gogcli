@@ -39,6 +39,9 @@ const (
 	backupServiceDrive         = "drive"
 	backupServiceGmail         = "gmail"
 	backupServiceGmailSettings = "gmail-settings"
+	backupServiceGroups        = "groups"
+	backupServiceAdmin         = "admin"
+	backupServiceKeep          = "keep"
 	backupServiceTasks         = "tasks"
 	backupServiceWorkspace     = "workspace"
 )
@@ -115,8 +118,11 @@ type BackupPushCmd struct {
 	DriveContents        bool   `name:"drive-contents" help:"Download/export Drive file contents into encrypted shards" default:"true" negatable:""`
 	DriveBinaryContents  bool   `name:"drive-binary-contents" help:"Include non-Google Drive binary file bytes in encrypted shards"`
 	DriveContentMaxBytes int64  `name:"drive-content-max-bytes" help:"Skip individual Drive content exports larger than this many bytes; 0 means unlimited" default:"0"`
+	DriveCollaboration   bool   `name:"drive-collaboration" help:"Back up Drive permissions, comments, and revision metadata" default:"true" negatable:""`
 	WorkspaceNative      bool   `name:"workspace-native" help:"Fetch full native Docs/Sheets/Slides API JSON in addition to Drive exports"`
 	WorkspaceMaxFiles    int    `name:"workspace-max-files" help:"Max Docs/Sheets/Slides files per type for native Workspace metadata; 0 means all" default:"0"`
+	GmailCache           bool   `name:"gmail-cache" help:"Cache fetched Gmail raw messages locally so interrupted full backups can resume" default:"true" negatable:""`
+	GmailRefreshCache    bool   `name:"gmail-refresh-cache" help:"Refetch Gmail messages even when a local backup cache entry exists"`
 	BestEffort           bool   `name:"best-effort" help:"Record optional service errors as backup rows and continue" default:"true" negatable:""`
 }
 
@@ -170,6 +176,7 @@ func (c *BackupPushCmd) Run(ctx context.Context, flags *RootFlags) error {
 				IncludeContents: c.DriveContents,
 				IncludeBinary:   c.DriveBinaryContents,
 				MaxContentBytes: c.DriveContentMaxBytes,
+				IncludeCollab:   c.DriveCollaboration,
 			})
 			if err != nil {
 				return err
@@ -181,6 +188,8 @@ func (c *BackupPushCmd) Run(ctx context.Context, flags *RootFlags) error {
 				Max:              c.Max,
 				IncludeSpamTrash: c.IncludeSpamTrash,
 				ShardMaxRows:     c.ShardMaxRows,
+				CacheMessages:    c.GmailCache,
+				RefreshCache:     c.GmailRefreshCache,
 			})
 			if err != nil {
 				return err
@@ -188,6 +197,30 @@ func (c *BackupPushCmd) Run(ctx context.Context, flags *RootFlags) error {
 			snapshots = append(snapshots, snapshot)
 		case backupServiceGmailSettings:
 			snapshot, err := buildGmailSettingsBackupSnapshot(ctx, flags, c.ShardMaxRows)
+			if err != nil {
+				return err
+			}
+			snapshots = append(snapshots, snapshot)
+		case backupServiceGroups:
+			snapshot, err := c.buildOptionalSnapshot(flags, backupServiceGroups, func() (backup.Snapshot, error) {
+				return buildGroupsBackupSnapshot(ctx, flags, c.ShardMaxRows)
+			})
+			if err != nil {
+				return err
+			}
+			snapshots = append(snapshots, snapshot)
+		case backupServiceAdmin:
+			snapshot, err := c.buildOptionalSnapshot(flags, backupServiceAdmin, func() (backup.Snapshot, error) {
+				return buildAdminBackupSnapshot(ctx, flags, c.ShardMaxRows)
+			})
+			if err != nil {
+				return err
+			}
+			snapshots = append(snapshots, snapshot)
+		case backupServiceKeep:
+			snapshot, err := c.buildOptionalSnapshot(flags, backupServiceKeep, func() (backup.Snapshot, error) {
+				return buildKeepBackupSnapshot(ctx, flags, c.ShardMaxRows)
+			})
 			if err != nil {
 				return err
 			}
@@ -211,7 +244,7 @@ func (c *BackupPushCmd) Run(ctx context.Context, flags *RootFlags) error {
 			}
 			snapshots = append(snapshots, snapshot)
 		default:
-			return fmt.Errorf("unsupported backup service %q (supported: all, appscript, calendar, chat, classroom, contacts, drive, gmail, gmail-settings, tasks, workspace)", service)
+			return fmt.Errorf("unsupported backup service %q (supported: all, admin, appscript, calendar, chat, classroom, contacts, drive, gmail, gmail-settings, groups, keep, tasks, workspace)", service)
 		}
 	}
 	result, err := backup.PushSnapshot(ctx, mergeBackupSnapshots(snapshots...), c.options())
@@ -239,6 +272,8 @@ type BackupGmailPushCmd struct {
 	Max              int64  `name:"max" aliases:"limit" help:"Max Gmail messages to export; 0 means all" default:"0"`
 	IncludeSpamTrash bool   `name:"include-spam-trash" help:"Include spam and trash" default:"true"`
 	ShardMaxRows     int    `name:"shard-max-rows" help:"Max messages per encrypted shard" default:"1000"`
+	CacheMessages    bool   `name:"gmail-cache" help:"Cache fetched raw messages locally so interrupted full backups can resume" default:"true" negatable:""`
+	RefreshCache     bool   `name:"gmail-refresh-cache" help:"Refetch messages even when a local backup cache entry exists"`
 }
 
 func (c *BackupGmailPushCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -247,6 +282,8 @@ func (c *BackupGmailPushCmd) Run(ctx context.Context, flags *RootFlags) error {
 		Max:              c.Max,
 		IncludeSpamTrash: c.IncludeSpamTrash,
 		ShardMaxRows:     c.ShardMaxRows,
+		CacheMessages:    c.CacheMessages,
+		RefreshCache:     c.RefreshCache,
 	})
 	if err != nil {
 		return err

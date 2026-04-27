@@ -19,6 +19,12 @@ type calendarBackupEvent struct {
 	Event      *calendar.Event `json:"event"`
 }
 
+type calendarBackupACLRule struct {
+	CalendarID string            `json:"calendarId"`
+	Rule       *calendar.AclRule `json:"rule,omitempty"`
+	Error      string            `json:"error,omitempty"`
+}
+
 type contactsBackupPerson struct {
 	Source string         `json:"source"`
 	Person *people.Person `json:"person"`
@@ -48,6 +54,9 @@ func expandBackupServices(services []string) []string {
 				backupServiceDrive,
 				backupServiceGmail,
 				backupServiceGmailSettings,
+				backupServiceGroups,
+				backupServiceAdmin,
+				backupServiceKeep,
 				backupServiceTasks,
 				backupServiceWorkspace,
 			)
@@ -94,6 +103,15 @@ func buildCalendarBackupSnapshot(ctx context.Context, flags *RootFlags, shardMax
 	if err != nil {
 		return backup.Snapshot{}, err
 	}
+	aclRules := fetchBackupCalendarACLRules(ctx, svc, calendars)
+	settings, err := fetchBackupCalendarSettings(ctx, svc)
+	if err != nil {
+		return backup.Snapshot{}, err
+	}
+	colors, err := svc.Colors.Get().Context(ctx).Do()
+	if err != nil {
+		return backup.Snapshot{}, err
+	}
 	shards := make([]backup.PlainShard, 0, 2)
 	calendarShard, err := backup.NewJSONLShard(backupServiceCalendar, "calendars", accountHash, fmt.Sprintf("data/calendar/%s/calendars.jsonl.gz.age", accountHash), calendars)
 	if err != nil {
@@ -105,12 +123,30 @@ func buildCalendarBackupSnapshot(ctx context.Context, flags *RootFlags, shardMax
 		return backup.Snapshot{}, err
 	}
 	shards = append(shards, eventShards...)
+	aclShards, err := buildBackupShards(backupServiceCalendar, "acl", accountHash, fmt.Sprintf("data/calendar/%s/acl", accountHash), aclRules, shardMaxRows)
+	if err != nil {
+		return backup.Snapshot{}, err
+	}
+	shards = append(shards, aclShards...)
+	settingsShard, err := backup.NewJSONLShard(backupServiceCalendar, "settings", accountHash, fmt.Sprintf("data/calendar/%s/settings.jsonl.gz.age", accountHash), settings)
+	if err != nil {
+		return backup.Snapshot{}, err
+	}
+	shards = append(shards, settingsShard)
+	colorsShard, err := backup.NewJSONLShard(backupServiceCalendar, "colors", accountHash, fmt.Sprintf("data/calendar/%s/colors.jsonl.gz.age", accountHash), []*calendar.Colors{colors})
+	if err != nil {
+		return backup.Snapshot{}, err
+	}
+	shards = append(shards, colorsShard)
 	return backup.Snapshot{
 		Services: []string{backupServiceCalendar},
 		Accounts: []string{accountHash},
 		Counts: map[string]int{
 			"calendar.calendars": len(calendars),
 			"calendar.events":    len(events),
+			"calendar.acl":       len(aclRules),
+			"calendar.settings":  len(settings),
+			"calendar.colors":    1,
 		},
 		Shards: shards,
 	}, nil
@@ -141,20 +177,98 @@ func buildContactsBackupSnapshot(ctx context.Context, flags *RootFlags, shardMax
 		return backup.Snapshot{}, err
 	}
 	peopleRows = append(peopleRows, otherContacts...)
+	groups, err := fetchBackupContactGroups(ctx, contactsSvc)
+	if err != nil {
+		return backup.Snapshot{}, err
+	}
 	shards, err := buildBackupShards(backupServiceContacts, "people", accountHash, fmt.Sprintf("data/contacts/%s/people", accountHash), peopleRows, shardMaxRows)
 	if err != nil {
 		return backup.Snapshot{}, err
 	}
+	groupShard, err := backup.NewJSONLShard(backupServiceContacts, "groups", accountHash, fmt.Sprintf("data/contacts/%s/groups.jsonl.gz.age", accountHash), groups)
+	if err != nil {
+		return backup.Snapshot{}, err
+	}
+	shards = append(shards, groupShard)
 	return backup.Snapshot{
 		Services: []string{backupServiceContacts},
 		Accounts: []string{accountHash},
 		Counts: map[string]int{
 			"contacts.connections": len(connections),
+			"contacts.groups":      len(groups),
 			"contacts.other":       len(otherContacts),
 			"contacts.people":      len(peopleRows),
 		},
 		Shards: shards,
 	}, nil
+}
+
+func fetchBackupCalendarACLRules(ctx context.Context, svc *calendar.Service, calendars []*calendar.CalendarListEntry) []calendarBackupACLRule {
+	var out []calendarBackupACLRule
+	for _, cal := range calendars {
+		if cal == nil || strings.TrimSpace(cal.Id) == "" {
+			continue
+		}
+		pageToken := ""
+		for {
+			call := svc.Acl.List(cal.Id).MaxResults(250).Context(ctx)
+			if pageToken != "" {
+				call = call.PageToken(pageToken)
+			}
+			resp, err := call.Do()
+			if err != nil {
+				out = append(out, calendarBackupACLRule{CalendarID: cal.Id, Error: err.Error()})
+				break
+			}
+			for _, rule := range resp.Items {
+				out = append(out, calendarBackupACLRule{CalendarID: cal.Id, Rule: rule})
+			}
+			if resp.NextPageToken == "" {
+				break
+			}
+			pageToken = resp.NextPageToken
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CalendarID == out[j].CalendarID {
+			return calendarACLRuleSortKey(out[i].Rule) < calendarACLRuleSortKey(out[j].Rule)
+		}
+		return out[i].CalendarID < out[j].CalendarID
+	})
+	return out
+}
+
+func fetchBackupCalendarSettings(ctx context.Context, svc *calendar.Service) ([]*calendar.Setting, error) {
+	var out []*calendar.Setting
+	pageToken := ""
+	for {
+		call := svc.Settings.List().MaxResults(250).Context(ctx)
+		if pageToken != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, resp.Items...)
+		if resp.NextPageToken == "" {
+			break
+		}
+		pageToken = resp.NextPageToken
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Id < out[j].Id })
+	return out, nil
+}
+
+func calendarACLRuleSortKey(rule *calendar.AclRule) string {
+	if rule == nil {
+		return ""
+	}
+	scope := ""
+	if rule.Scope != nil {
+		scope = rule.Scope.Type + "\x00" + rule.Scope.Value
+	}
+	return scope + "\x00" + rule.Role + "\x00" + rule.Id
 }
 
 func buildTasksBackupSnapshot(ctx context.Context, flags *RootFlags, shardMaxRows int) (backup.Snapshot, error) {
@@ -308,6 +422,31 @@ func fetchBackupOtherContacts(ctx context.Context, svc *people.Service) ([]conta
 		}
 		pageToken = resp.NextPageToken
 	}
+	return out, nil
+}
+
+func fetchBackupContactGroups(ctx context.Context, svc *people.Service) ([]*people.ContactGroup, error) {
+	var out []*people.ContactGroup
+	pageToken := ""
+	for {
+		call := svc.ContactGroups.List().
+			PageSize(1000).
+			GroupFields("clientData,formattedName,groupType,memberCount,metadata,name,resourceName").
+			Context(ctx)
+		if pageToken != "" {
+			call = call.PageToken(pageToken)
+		}
+		resp, err := call.Do()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, resp.ContactGroups...)
+		if resp.NextPageToken == "" {
+			break
+		}
+		pageToken = resp.NextPageToken
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ResourceName < out[j].ResourceName })
 	return out, nil
 }
 

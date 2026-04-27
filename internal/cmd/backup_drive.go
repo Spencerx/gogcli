@@ -20,6 +20,7 @@ type driveBackupOptions struct {
 	IncludeContents bool
 	IncludeBinary   bool
 	MaxContentBytes int64
+	IncludeCollab   bool
 }
 
 func buildDriveBackupSnapshot(ctx context.Context, flags *RootFlags, opts driveBackupOptions) (backup.Snapshot, error) {
@@ -63,6 +64,27 @@ func buildDriveBackupSnapshot(ctx context.Context, flags *RootFlags, opts driveB
 		}
 		shards = append(shards, contentShards...)
 		for key, value := range contentCounts {
+			counts[key] = value
+		}
+	}
+	if opts.IncludeCollab {
+		collab, collabCounts := fetchBackupDriveCollaboration(ctx, svc, files)
+		permissionShards, shardErr := buildBackupShards(backupServiceDrive, "permissions", accountHash, fmt.Sprintf("data/drive/%s/permissions", accountHash), collab.Permissions, opts.ShardMaxRows)
+		if shardErr != nil {
+			return backup.Snapshot{}, shardErr
+		}
+		commentShards, shardErr := buildBackupShards(backupServiceDrive, "comments", accountHash, fmt.Sprintf("data/drive/%s/comments", accountHash), collab.Comments, opts.ShardMaxRows)
+		if shardErr != nil {
+			return backup.Snapshot{}, shardErr
+		}
+		revisionShards, shardErr := buildBackupShards(backupServiceDrive, "revisions", accountHash, fmt.Sprintf("data/drive/%s/revisions", accountHash), collab.Revisions, opts.ShardMaxRows)
+		if shardErr != nil {
+			return backup.Snapshot{}, shardErr
+		}
+		shards = append(shards, permissionShards...)
+		shards = append(shards, commentShards...)
+		shards = append(shards, revisionShards...)
+		for key, value := range collabCounts {
 			counts[key] = value
 		}
 	}

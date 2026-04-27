@@ -71,18 +71,23 @@ remote.
 
 Supported services:
 
-- `gmail`: labels and raw MIME messages.
+- `gmail`: labels and raw MIME messages. Fetched raw messages are cached under
+  the local user cache by default so interrupted full-mailbox runs can resume
+  the expensive message download phase; use `--no-gmail-cache` or
+  `--gmail-refresh-cache` to bypass it.
 - `gmail-settings`: filters, forwarding addresses, auto-forwarding, send-as
   aliases, vacation responder, delegate visibility, POP, IMAP, and language
   settings.
-- `calendar`: calendar list entries and all events, including deleted events.
-- `contacts`: People API contacts and other contacts.
+- `calendar`: calendar list entries, ACL rules, Calendar settings/colors, and
+  all events, including deleted events.
+- `contacts`: People API contacts, other contacts, and contact groups.
 - `tasks`: task lists and tasks, including completed, deleted, hidden, and
   assigned tasks.
-- `drive`: shared drives, Drive file metadata, and downloaded/exported file
-  content. Google Docs export as `.docx` and Markdown, Sheets as `.xlsx`,
-  Slides as `.pptx` and PDF, Drawings as PNG and PDF, and binary files as
-  metadata-only unless `--drive-binary-contents` is set.
+- `drive`: shared drives, Drive file metadata, permissions, comments, revision
+  metadata, and downloaded/exported file content. Google Docs export as `.docx`
+  and Markdown, Sheets as `.xlsx`, Slides as `.pptx` and PDF, Drawings as PNG
+  and PDF, and binary files as metadata-only unless `--drive-binary-contents`
+  is set.
 - `workspace`: Docs/Sheets/Slides inventory plus Forms and form responses
   discovered through Drive. Add `--workspace-native` to fetch full native
   Docs/Sheets/Slides API JSON.
@@ -92,13 +97,22 @@ Supported services:
   access.
 - `classroom`: courses, topics, announcements, coursework, materials, and
   submissions visible to the authenticated account.
+- `groups`: Cloud Identity groups the account belongs to, plus member lists
+  when the API permits them.
+- `admin`: Workspace Admin Directory users, groups, and group members. This is
+  Workspace-only and requires the existing Admin SDK/domain-wide delegation
+  setup.
+- `keep`: Google Keep notes. This is Workspace-only and requires the existing
+  Keep service-account setup.
 
 `all` expands to every supported service. Pushing a subset updates that subset
 and preserves existing shards for services that were not selected, as long as
 the age recipients are unchanged.
 
-`gog backup push` enables `--drive-contents` and `--best-effort` by default.
-Use `--no-drive-contents` for metadata-only Drive runs, or
+`gog backup push` enables `--drive-contents`, `--drive-collaboration`,
+`--gmail-cache`, and `--best-effort` by default. Use `--no-drive-contents` for
+metadata-only Drive runs, `--no-drive-collaboration` to skip per-file Drive
+permissions/comments/revisions, or
 `--drive-content-max-bytes <bytes>` to skip individual large Drive downloads.
 Drive content exports Google-native files by default; set
 `--drive-binary-contents` only when you intentionally want non-Google binary
@@ -106,7 +120,8 @@ file bytes in Git shards. Use `--workspace-native` only when you want the
 heavier native API JSON in addition to readable Drive exports;
 `--workspace-max-files` bounds that native fetch per file type for smoke tests.
 Best-effort optional services record encrypted `errors` shards and let the rest
-of the backup finish.
+of the backup finish. The Gmail cache is only a local acceleration/resume cache;
+encrypted backup shards remain the source of truth once a push completes.
 
 ## Files
 
@@ -127,6 +142,9 @@ data/gmail/<account-hash>/messages/YYYY/MM/part-0001.jsonl.gz.age
 data/calendar/<account-hash>/...
 data/contacts/<account-hash>/...
 data/drive/<account-hash>/...
+data/groups/<account-hash>/...
+data/admin/<account-hash>/...
+data/keep/<account-hash>/...
 data/tasks/<account-hash>/...
 ```
 
@@ -238,6 +256,14 @@ Raw message payloads stay base64url encoded inside encrypted JSONL. This
 preserves the RFC 2822 message content while keeping the shard format text
 friendly.
 
+By default, each fetched raw message is also cached locally under the OS user
+cache directory (`gogcli/backup/gmail/<account-hash>/raw-v1/`). The cache stores
+the same raw message row that will be encrypted into shards and is keyed by a
+SHA-256 of the Gmail message ID, so rerunning after an interruption can reuse
+already fetched messages. `--gmail-refresh-cache` forces a refetch. The cache is
+plaintext local data; clear it if the machine should not retain local mail
+copies outside the encrypted backup/export locations.
+
 `--include-spam-trash` defaults to true. Use `--query` and `--max` for bounded
 test exports; omit them for a full mailbox scan.
 
@@ -245,10 +271,11 @@ The Gmail settings adapter backs up account configuration through read-only
 settings endpoints. Some settings, such as delegates, can be forbidden for
 consumer accounts; those errors are kept inside the encrypted settings shard.
 
-The Calendar adapter backs up calendar list entries and all events from each
-calendar. The Contacts adapter backs up contacts and other contacts. The Tasks
-adapter backs up task lists and tasks. The Drive adapter backs up shared drives,
-file metadata, and Google-native file exports by default. Content rows store
+The Calendar adapter backs up calendar list entries, ACLs, settings, colors,
+and all events from each calendar. The Contacts adapter backs up contacts, other
+contacts, and contact groups. The Tasks adapter backs up task lists and tasks.
+The Drive adapter backs up shared drives, file metadata, permissions, comments,
+revision metadata, and Google-native file exports by default. Content rows store
 base64 bytes inside encrypted JSONL so Git only sees ciphertext; plaintext
 export decodes them back into regular files. Non-Google binary Drive bytes are
 opt-in because personal Drives can easily contain tens of gigabytes.
