@@ -353,6 +353,8 @@ type gmailBackupCheckpointer struct {
 
 const gmailCheckpointShardMaxRows = 250
 
+var gmailCheckpointShardMaxPlaintextBytes int64 = 32 * 1024 * 1024
+
 func newGmailBackupCheckpointer(ctx context.Context, opts gmailBackupOptions, total int) *gmailBackupCheckpointer {
 	enabled := opts.Checkpoints &&
 		opts.CacheMessages &&
@@ -876,21 +878,57 @@ func buildGmailCheckpointShardsFromCache(accountHash, runID string, firstPart in
 		return nil, nil
 	}
 	shards := make([]backup.PlainShard, 0, (len(ids)+gmailCheckpointShardMaxRows-1)/gmailCheckpointShardMaxRows)
-	for start := 0; start < len(ids); start += gmailCheckpointShardMaxRows {
-		end := start + gmailCheckpointShardMaxRows
-		if end > len(ids) {
-			end = len(ids)
-		}
-		shard, err := buildGmailCheckpointShardFromCache(accountHash, runID, firstPart+len(shards), ids[start:end])
-		if err != nil {
-			for _, shard := range shards {
-				if strings.TrimSpace(shard.PlaintextPath) != "" {
-					_ = os.Remove(shard.PlaintextPath)
-				}
+	chunk := make([]string, 0, gmailCheckpointShardMaxRows)
+	var chunkBytes int64
+	cleanup := func() {
+		for _, shard := range shards {
+			if strings.TrimSpace(shard.PlaintextPath) != "" {
+				_ = os.Remove(shard.PlaintextPath)
 			}
-			return nil, err
+		}
+	}
+	flush := func() error {
+		if len(chunk) == 0 {
+			return nil
+		}
+		shard, err := buildGmailCheckpointShardFromCache(accountHash, runID, firstPart+len(shards), chunk)
+		if err != nil {
+			cleanup()
+			return err
 		}
 		shards = append(shards, shard)
+		chunk = chunk[:0]
+		chunkBytes = 0
+		return nil
+	}
+	for _, id := range ids {
+		msg, ok, err := readGmailBackupMessageCache(accountHash, id)
+		if err != nil {
+			cleanup()
+			return nil, err
+		}
+		if !ok {
+			cleanup()
+			return nil, fmt.Errorf("gmail message %s missing from backup cache", id)
+		}
+		line, err := json.Marshal(msg)
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("encode gmail backup checkpoint shard estimate: %w", err)
+		}
+		lineBytes := int64(len(line) + 1)
+		overRows := len(chunk) >= gmailCheckpointShardMaxRows
+		overBytes := gmailCheckpointShardMaxPlaintextBytes > 0 && len(chunk) > 0 && chunkBytes+lineBytes > gmailCheckpointShardMaxPlaintextBytes
+		if overRows || overBytes {
+			if err := flush(); err != nil {
+				return nil, err
+			}
+		}
+		chunk = append(chunk, id)
+		chunkBytes += lineBytes
+	}
+	if err := flush(); err != nil {
+		return nil, err
 	}
 	return shards, nil
 }

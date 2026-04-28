@@ -281,12 +281,13 @@ recipients as normal backup shards, and are committed with messages like
 to use the root `manifest.json` as the authoritative completed backup. This
 keeps long runs crash-tolerant without pretending partial data is a finished
 snapshot. A checkpoint commit can cover many messages, but its encrypted files
-are split into smaller shard files to stay below normal GitHub blob limits. Tune
-the commit cadence with `--gmail-checkpoint-rows` / `--gmail-checkpoint-interval`
-on `gog backup push`, or `--checkpoint-rows` / `--checkpoint-interval` on
-`gog backup gmail push`; set the interval or rows to `0` to disable that
-trigger, or use `--no-gmail-checkpoints` / `--no-checkpoints` to disable
-checkpoint pushes entirely.
+are split by both row count and a conservative plaintext byte ceiling so large
+messages do not create GitHub-rejected blobs. Tune the commit cadence with
+`--gmail-checkpoint-rows` / `--gmail-checkpoint-interval` on `gog backup push`,
+or `--checkpoint-rows` / `--checkpoint-interval` on `gog backup gmail push`;
+set the interval or rows to `0` to disable that trigger, or use
+`--no-gmail-checkpoints` / `--no-checkpoints` to disable checkpoint pushes
+entirely.
 
 `--include-spam-trash` defaults to true. Use `--query` and `--max` for bounded
 test exports; omit them for a full mailbox scan.
