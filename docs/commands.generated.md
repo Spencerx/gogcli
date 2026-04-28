@@ -409,9 +409,11 @@ Generated from `gog schema --json`.
 - `gog slides (slide) delete-slide <presentationId> <slideId>` - Delete a slide by object ID
 - `gog slides (slide) export (download,dl) <presentationId> [flags]` - Export a Google Slides deck (pdf|pptx)
 - `gog slides (slide) info (get,show) <presentationId>` - Get Google Slides presentation metadata
+- `gog slides (slide) insert-text <presentationId> <objectId> <text> [flags]` - Insert text into an existing page element (shape or table) by objectId
 - `gog slides (slide) list-slides <presentationId>` - List all slides with their object IDs
 - `gog slides (slide) read-slide <presentationId> <slideId>` - Read slide content: speaker notes, text elements, and images
 - `gog slides (slide) replace-slide <presentationId> <slideId> <image> [flags]` - Replace the image on an existing slide in-place
+- `gog slides (slide) replace-text <presentationId> <find> <replacement> [flags]` - Find-and-replace text across a presentation
 - `gog slides (slide) thumbnail (thumb) <presentationId> <slideId> [flags]` - Get or download a rendered thumbnail for a slide
 - `gog slides (slide) update-notes <presentationId> <slideId> [flags]` - Update speaker notes on an existing slide
 - `gog status (st) [flags]` - Show auth/config status (alias for 'auth status')

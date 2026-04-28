@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -48,26 +46,23 @@ func (c *SlidesInsertTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		text = string(data)
 	}
+	if text == "" && !c.Replace {
+		return usage("empty text")
+	}
 
 	// Build the batchUpdate request body.
 	var requests []*slides.Request
 	if c.Replace {
+		requests = buildSlidesClearAndInsertTextRequests(objectID, text)
+	} else {
 		requests = append(requests, &slides.Request{
-			DeleteText: &slides.DeleteTextRequest{
-				ObjectId: objectID,
-				TextRange: &slides.Range{
-					Type: "ALL",
-				},
+			InsertText: &slides.InsertTextRequest{
+				ObjectId:       objectID,
+				Text:           text,
+				InsertionIndex: c.InsertionIndex,
 			},
 		})
 	}
-	requests = append(requests, &slides.Request{
-		InsertText: &slides.InsertTextRequest{
-			ObjectId:       objectID,
-			Text:           text,
-			InsertionIndex: c.InsertionIndex,
-		},
-	})
 
 	body := &slides.BatchUpdatePresentationRequest{Requests: requests}
 
@@ -104,20 +99,5 @@ func (c *SlidesInsertTextCmd) Run(ctx context.Context, flags *RootFlags) error {
 		replies = len(resp.Replies)
 	}
 	u.Out().Printf("ok | revisionId=%s | replies=%d", revisionID, replies)
-	return nil
-}
-
-// writeSlidesBatchUpdateDryRun serializes a BatchUpdatePresentationRequest to
-// stdout as pretty JSON. Used by slides commands that honor --dry-run.
-func writeSlidesBatchUpdateDryRun(ctx context.Context, body *slides.BatchUpdatePresentationRequest) error {
-	if body == nil {
-		return errors.New("nil batch update request")
-	}
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(body); err != nil {
-		return fmt.Errorf("encode dry-run request: %w", err)
-	}
-	_ = ctx // reserved for future use (e.g., UI-aware formatting)
 	return nil
 }

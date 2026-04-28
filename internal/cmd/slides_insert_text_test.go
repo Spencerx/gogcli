@@ -156,6 +156,47 @@ func TestSlidesInsertText_ReplaceEmitsDeleteThenInsert(t *testing.T) {
 	}
 }
 
+func TestSlidesInsertText_ReplaceEmptyClearsOnly(t *testing.T) {
+	origSlides := newSlidesService
+	t.Cleanup(func() { newSlidesService = origSlides })
+
+	var captured []*slides.Request
+	srv := mockSlidesBatchUpdateServer(t, &captured, map[string]any{
+		"presentationId": "pres1",
+		"replies":        []any{map[string]any{}},
+	})
+	defer srv.Close()
+
+	svc := newSlidesServiceFromServer(t, srv)
+	newSlidesService = func(context.Context, string) (*slides.Service, error) { return svc, nil }
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	_ = captureStdout(t, func() {
+		cmd := &SlidesInsertTextCmd{
+			PresentationID: "pres1",
+			ObjectID:       "shape_1",
+			Text:           "",
+			Replace:        true,
+		}
+		if err := cmd.Run(ctx, flags); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	})
+
+	if len(captured) != 1 {
+		t.Fatalf("expected 1 DeleteText request, got %d", len(captured))
+	}
+	if captured[0].DeleteText == nil {
+		t.Fatalf("expected DeleteText request, got %+v", captured[0])
+	}
+}
+
 func TestSlidesInsertText_StdinDash(t *testing.T) {
 	origSlides := newSlidesService
 	t.Cleanup(func() { newSlidesService = origSlides })
@@ -248,6 +289,33 @@ func TestSlidesInsertText_DryRunNoAPICall(t *testing.T) {
 	}
 	if body.Requests[0].DeleteText == nil || body.Requests[1].InsertText == nil {
 		t.Errorf("expected DeleteText then InsertText in dry-run body, got %+v", body.Requests)
+	}
+}
+
+func TestSlidesInsertText_EmptyTextWithoutReplace(t *testing.T) {
+	origSlides := newSlidesService
+	t.Cleanup(func() { newSlidesService = origSlides })
+
+	newSlidesService = func(context.Context, string) (*slides.Service, error) {
+		t.Fatal("slides service should not be created")
+		return nil, context.Canceled
+	}
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &SlidesInsertTextCmd{
+		PresentationID: "pres1",
+		ObjectID:       "shape_1",
+		Text:           "",
+	}
+	err := cmd.Run(ctx, flags)
+	if err == nil || !strings.Contains(err.Error(), "empty text") {
+		t.Fatalf("expected empty text error, got: %v", err)
 	}
 }
 

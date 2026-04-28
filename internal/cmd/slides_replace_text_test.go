@@ -131,6 +131,34 @@ func TestSlidesReplaceText_MatchCaseAndPages(t *testing.T) {
 	}
 }
 
+func TestSlidesReplaceText_BlankPageID(t *testing.T) {
+	origSlides := newSlidesService
+	t.Cleanup(func() { newSlidesService = origSlides })
+
+	newSlidesService = func(context.Context, string) (*slides.Service, error) {
+		t.Fatal("slides service should not be created")
+		return nil, context.Canceled
+	}
+
+	flags := &RootFlags{Account: "a@b.com"}
+	u, uiErr := ui.New(ui.Options{Stdout: io.Discard, Stderr: io.Discard, Color: "never"})
+	if uiErr != nil {
+		t.Fatalf("ui.New: %v", uiErr)
+	}
+	ctx := ui.WithUI(context.Background(), u)
+
+	cmd := &SlidesReplaceTextCmd{
+		PresentationID: "pres1",
+		Find:           "old",
+		Replacement:    "new",
+		Pages:          []string{"   "},
+	}
+	err := cmd.Run(ctx, flags)
+	if err == nil || !strings.Contains(err.Error(), "empty page object ID") {
+		t.Fatalf("expected empty page object ID error, got: %v", err)
+	}
+}
+
 func TestSlidesReplaceText_DryRunNoAPICall(t *testing.T) {
 	origSlides := newSlidesService
 	t.Cleanup(func() { newSlidesService = origSlides })

@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -85,4 +88,19 @@ func buildSlidesClearAndInsertTextRequests(objectID string, text string) []*slid
 		})
 	}
 	return requests
+}
+
+// writeSlidesBatchUpdateDryRun serializes a BatchUpdatePresentationRequest to
+// stdout as pretty JSON. Used by slides commands that honor --dry-run.
+func writeSlidesBatchUpdateDryRun(ctx context.Context, body *slides.BatchUpdatePresentationRequest) error {
+	if body == nil {
+		return errors.New("nil batch update request")
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(body); err != nil {
+		return fmt.Errorf("encode dry-run request: %w", err)
+	}
+	_ = ctx // reserved for future use (e.g., UI-aware formatting)
+	return nil
 }

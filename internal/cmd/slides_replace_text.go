@@ -47,9 +47,11 @@ func (c *SlidesReplaceTextCmd) Run(ctx context.Context, flags *RootFlags) error 
 		// Preserve order and trim whitespace on each page id.
 		pages := make([]string, 0, len(c.Pages))
 		for _, p := range c.Pages {
-			if p = strings.TrimSpace(p); p != "" {
-				pages = append(pages, p)
+			p = strings.TrimSpace(p)
+			if p == "" {
+				return usage("empty page object ID")
 			}
+			pages = append(pages, p)
 		}
 		req.PageObjectIds = pages
 	}
