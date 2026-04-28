@@ -6,6 +6,9 @@ import { pixelResponse } from './pixel';
 const OPEN_DEDUP_WINDOW = '-1 hour';
 const IP_RATE_WINDOW = '-1 hour';
 const MAX_OPENS_PER_IP_PER_HOUR = 100;
+const OPEN_RETENTION_WINDOW = '-90 days';
+const DEFAULT_ADMIN_LIMIT = 100;
+const MAX_ADMIN_LIMIT = 500;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -38,6 +41,10 @@ export default {
       console.error('Handler error:', error);
       return new Response('Internal Error', { status: 500 });
     }
+  },
+
+  async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
+    await purgeExpiredOpens(env);
   },
 };
 
@@ -141,6 +148,15 @@ async function shouldSkipOpen(env: Env, trackingId: string, ip: string, userAgen
   }
 }
 
+async function purgeExpiredOpens(env: Env): Promise<void> {
+  await env.DB.prepare(`
+    DELETE FROM opens
+    WHERE opened_at < datetime('now', ?)
+  `).bind(
+    OPEN_RETENTION_WINDOW
+  ).run();
+}
+
 async function handleQuery(request: Request, env: Env, path: string): Promise<Response> {
   const blob = path.slice(3); // Remove '/q/'
 
@@ -197,7 +213,7 @@ async function handleAdminOpens(request: Request, env: Env, url: URL): Promise<R
 
   const recipient = url.searchParams.get('recipient');
   const since = url.searchParams.get('since');
-  const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+  const limit = parseAdminLimit(url.searchParams.get('limit'));
 
   let query = 'SELECT * FROM opens WHERE 1=1';
   const params: any[] = [];
@@ -233,4 +249,13 @@ async function handleAdminOpens(request: Request, env: Env, url: URL): Promise<R
       } : null,
     })),
   });
+}
+
+function parseAdminLimit(raw: string | null): number {
+  const parsed = Number.parseInt(raw || '', 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_ADMIN_LIMIT;
+  }
+
+  return Math.min(parsed, MAX_ADMIN_LIMIT);
 }

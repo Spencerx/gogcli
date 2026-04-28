@@ -20,7 +20,9 @@ Abuse controls:
 
 Privacy note:
 - Tracking is inherently sensitive. Treat this as *instrumentation you opt into per email*.
-- The Worker stores IP + user-agent and can derive coarse geo (depending on CF headers/config).
+- The Worker stores recipient email, subject hash, sent/open timestamps, IP, user-agent, bot classification, and coarse geo from Cloudflare request metadata when available.
+- The deployed Worker includes a daily cron trigger that deletes open rows older than 90 days.
+- Admin `/opens` queries default to 100 rows and are capped at 500 rows per request.
 
 ## Setup (local)
 
@@ -75,6 +77,8 @@ Update `wrangler.toml` to reference the D1 `database_id`, then deploy:
 ```sh
 pnpm exec wrangler deploy
 ```
+
+`wrangler.toml` includes a daily cron trigger for retention cleanup. After deploy, Cloudflare calls the Worker once per day and the Worker deletes open rows older than 90 days.
 
 ## Send tracked mail
 
