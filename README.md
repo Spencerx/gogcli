@@ -219,6 +219,8 @@ Verify tokens are usable (helps spot revoked/expired tokens):
 gog auth list --check
 ```
 
+If one file-keyring token cannot be decrypted, `gog auth list` still reports the readable accounts and prints the unreadable account with an error. Use `gog auth tokens list` to show token keys without decrypting them, then `gog auth tokens delete <email>` after confirming the affected account.
+
 Diagnose keyring/password drift and refresh-token failures:
 
 ```bash

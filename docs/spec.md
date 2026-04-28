@@ -102,8 +102,9 @@ Implementation: `internal/config/*`.
 
 Current minimal management commands (implemented):
 
-- `gog auth tokens list` (keys only)
+- `gog auth tokens list` (keys only; does not decrypt token payloads)
 - `gog auth tokens delete <email>`
+- `gog auth list` reports unreadable token entries instead of failing the whole listing, so one bad file-keyring entry does not hide other accounts.
 
 Implementation: `internal/secrets/store.go`.
 

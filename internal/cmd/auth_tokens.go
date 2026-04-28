@@ -32,18 +32,10 @@ func (c *AuthTokensListCmd) Run(ctx context.Context, _ *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	tokens, err := store.ListTokens()
+	filtered, err := storedTokenKeys(store)
 	if err != nil {
 		return err
 	}
-	filtered := make([]string, 0, len(tokens))
-	for _, tok := range tokens {
-		if strings.TrimSpace(tok.Email) == "" {
-			continue
-		}
-		filtered = append(filtered, secrets.TokenKey(tok.Client, tok.Email))
-	}
-	sort.Strings(filtered)
 
 	if len(filtered) == 0 {
 		if outfmt.IsJSON(ctx) {
@@ -59,6 +51,31 @@ func (c *AuthTokensListCmd) Run(ctx context.Context, _ *RootFlags) error {
 		u.Out().Println(k)
 	}
 	return nil
+}
+
+func storedTokenKeys(store secrets.Store) ([]string, error) {
+	keys, err := store.Keys()
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]string, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		client, email, ok := secrets.ParseTokenKey(key)
+		if !ok {
+			continue
+		}
+		tokenKey := secrets.TokenKey(client, email)
+		if _, ok := seen[tokenKey]; ok {
+			continue
+		}
+		seen[tokenKey] = struct{}{}
+		filtered = append(filtered, tokenKey)
+	}
+	sort.Strings(filtered)
+
+	return filtered, nil
 }
 
 type AuthTokensDeleteCmd struct {

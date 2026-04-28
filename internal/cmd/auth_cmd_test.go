@@ -212,6 +212,30 @@ func TestAuthTokensList_FiltersNonTokenKeys(t *testing.T) {
 	}
 }
 
+func TestAuthTokensList_ListsKeysWithoutDecrypting(t *testing.T) {
+	origOpen := openSecretsStore
+	t.Cleanup(func() { openSecretsStore = origOpen })
+
+	openSecretsStore = func() (secrets.Store, error) {
+		return &errorTokenStore{
+			keys: []string{secrets.TokenKey(config.DefaultClientName, "a@b.com")},
+			err:  errors.New("read token: aes.KeyUnwrap(): integrity check failed"),
+		}, nil
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"auth", "tokens", "list"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	if strings.TrimSpace(out) != "token:default:a@b.com" {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
 func TestAuthStatus_JSON(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -301,7 +325,7 @@ func (s *errorTokenStore) GetToken(string, string) (secrets.Token, error) {
 
 func (s *errorTokenStore) DeleteToken(string, string) error { return nil }
 
-func (s *errorTokenStore) ListTokens() ([]secrets.Token, error) { return nil, nil }
+func (s *errorTokenStore) ListTokens() ([]secrets.Token, error) { return nil, s.err }
 
 func (s *errorTokenStore) GetDefaultAccount(string) (string, error) { return "", nil }
 
@@ -353,6 +377,52 @@ func TestAuthDoctor_JSON_ClassifiesFileKeyringIntegrity(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("missing classified token error: %#v", payload.Checks)
+	}
+}
+
+func TestAuthList_JSON_ReportsUnreadableToken(t *testing.T) {
+	origOpen := openSecretsStore
+	t.Cleanup(func() { openSecretsStore = origOpen })
+
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	openSecretsStore = func() (secrets.Store, error) {
+		return &errorTokenStore{
+			keys: []string{secrets.TokenKey(config.DefaultClientName, "a@b.com")},
+			err:  errors.New("read token: aes.KeyUnwrap(): integrity check failed"),
+		}, nil
+	}
+
+	out := captureStdout(t, func() {
+		_ = captureStderr(t, func() {
+			if err := Execute([]string{"--json", "auth", "list"}); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+		})
+	})
+
+	var payload struct {
+		Accounts []struct {
+			Email  string `json:"email"`
+			Client string `json:"client"`
+			Auth   string `json:"auth"`
+			Error  string `json:"error"`
+			Hint   string `json:"hint"`
+		} `json:"accounts"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("json parse: %v\nout=%q", err, out)
+	}
+	if len(payload.Accounts) != 1 {
+		t.Fatalf("accounts=%#v, want one unreadable token row", payload.Accounts)
+	}
+	account := payload.Accounts[0]
+	if account.Email != "a@b.com" || account.Client != config.DefaultClientName || account.Auth != authTypeOAuth {
+		t.Fatalf("unexpected account row: %#v", account)
+	}
+	if !strings.Contains(account.Error, "integrity check failed") || !strings.Contains(account.Hint, "password mismatch") {
+		t.Fatalf("missing classified unreadable-token details: %#v", account)
 	}
 }
 
