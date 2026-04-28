@@ -14,8 +14,13 @@ func Cat(ctx context.Context, opts Options, shardPath string) (PlainShard, error
 	if err != nil {
 		return PlainShard{}, err
 	}
-	if repoErr := ensureRepo(ctx, cfg); repoErr != nil {
-		return PlainShard{}, repoErr
+	if !opts.SkipPull {
+		repoErr := ensureRepo(ctx, cfg)
+		if repoErr != nil {
+			return PlainShard{}, repoErr
+		}
+	} else if strings.TrimSpace(cfg.Repo) == "" {
+		return PlainShard{}, fmt.Errorf("backup repo path is required")
 	}
 	manifest, err := readManifest(cfg.Repo)
 	if err != nil {
@@ -36,8 +41,13 @@ func DecryptSnapshot(ctx context.Context, opts Options) (Manifest, string, []Pla
 	if err != nil {
 		return Manifest{}, "", nil, err
 	}
-	if repoErr := ensureRepo(ctx, cfg); repoErr != nil {
-		return Manifest{}, "", nil, repoErr
+	if !opts.SkipPull {
+		repoErr := ensureRepo(ctx, cfg)
+		if repoErr != nil {
+			return Manifest{}, "", nil, repoErr
+		}
+	} else if strings.TrimSpace(cfg.Repo) == "" {
+		return Manifest{}, "", nil, fmt.Errorf("backup repo path is required")
 	}
 	manifest, err := readManifest(cfg.Repo)
 	if err != nil {

@@ -749,6 +749,7 @@ gog backup status
 gog backup verify
 gog backup cat data/gmail/<account-hash>/labels.jsonl.gz.age --pretty
 gog backup export --out ~/Documents/gog-backup-export
+gog backup export --no-pull --out ~/Library/CloudStorage/Dropbox/backup/gog --gmail-format markdown
 ```
 
 For a bounded first run:
@@ -789,12 +790,16 @@ Optional Workspace-only services use `--best-effort` by default, recording
 permission/auth errors as encrypted error shards instead of stopping the run.
 
 Use `gog backup cat` to decrypt one shard as JSONL, or `gog backup export` to
-write a local plaintext copy. The export writes Gmail messages as `.eml` files,
-plus `gmail/<account-hash>/messages/index.jsonl` and pretty `labels.json`.
-Drive contents export as normal files under `drive/<account-hash>/files/` with
-an `index.jsonl`; other services export as verified JSONL under `raw/`.
-That export is intentionally unencrypted; keep it out of Git, shared folders,
-and cloud sync unless that is intentional.
+write a local plaintext copy. By default Gmail messages export as `.eml` files.
+Use `--gmail-format markdown` for a readable mirror with `message.md` files and
+extracted `attachments/` folders, or `--gmail-format both` to keep Markdown and
+`.eml` side by side. `--gmail-attachments none` keeps Markdown notes without
+writing attachment files. Drive contents export as normal files under
+`drive/<account-hash>/files/` with an `index.jsonl`; other services export as
+verified JSONL under `raw/`. That export is intentionally unencrypted; keep it
+out of Git, shared folders, and cloud sync unless that is intentional.
+Use `--no-pull` when exporting from a local backup repository that another
+process is already updating.
 
 `manifest.json` is intentionally cleartext for cheap status and verification.
 It exposes metadata: export time, service names, account hashes, shard paths,

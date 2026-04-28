@@ -10,6 +10,7 @@
 - Backup: add Gmail message-list checkpoints, streaming shard construction, and stderr progress counters so full-mailbox backups can resume cleanly after interruption without keeping every raw message in RAM.
 - Backup: push encrypted incomplete Gmail checkpoint commits during long cached fetches so day-scale mailbox backups have offsite progress before the final manifest is committed.
 - Backup: push Gmail checkpoint commits through a single ordered background queue so cached fetches continue while GitHub uploads run.
+- Backup: add `gog backup export --gmail-format markdown` for local readable Gmail mirrors with Markdown notes and extracted attachment files.
 - Calendar: add `--start-timezone` / `--end-timezone` to `calendar create` and `calendar update` for preserving named IANA event timezones when RFC3339 inputs only carry numeric offsets. (#422)
 - Drive: add `drive search --drive` and `--parent` for scoping search to a shared drive or folder. (#525) — thanks @LeanSheng.
 - Docs: add experimental `docs export --tab` / `drive download --tab` to export a single Google Docs tab as PDF, DOCX, text, Markdown, or HTML. (#535) — thanks @johnbenjaminlewis.

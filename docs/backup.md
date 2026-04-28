@@ -64,6 +64,7 @@ Write an unencrypted local copy for easy reading on the Mac:
 
 ```bash
 gog backup export --out ~/Documents/gog-backup-export
+gog backup export --no-pull --out ~/Library/CloudStorage/Dropbox/backup/gog --gmail-format markdown
 ```
 
 Use `--no-push` on `init` or `push` to commit locally without pushing to the
@@ -166,17 +167,24 @@ manifest.json
 gmail/<account-hash>/labels.json
 gmail/<account-hash>/messages/index.jsonl
 gmail/<account-hash>/messages/YYYY/MM/<timestamp>-<message-id>.eml
+gmail/<account-hash>/messages/YYYY/MM/<timestamp>-<subject>-<message-id>/message.md
+gmail/<account-hash>/messages/YYYY/MM/<timestamp>-<subject>-<message-id>/attachments/<filename>
 drive/<account-hash>/files/index.jsonl
 drive/<account-hash>/files/<file-id>/<exported-file>
 raw/<service>/...
 ```
 
 `gog backup export` decrypts and verifies the manifest-backed shards before
-writing files. Gmail messages become `.eml` files that open in Mail and other
-mail clients. Drive content shards become normal files plus an index. Other
+writing files. Gmail messages become `.eml` files by default. Use
+`--gmail-format markdown` for `message.md` files with YAML metadata and
+extracted `attachments/` folders, or `--gmail-format both` to write Markdown and
+`.eml` side by side. `--gmail-attachments none` keeps Markdown notes but skips
+attachment files. Drive content shards become normal files plus an index. Other
 services are written as verified JSONL under `raw/`. The export is not
 encrypted; do not place it inside the backup Git repository, and keep it out of
 synced/shared folders unless that is intentional.
+Use `--no-pull` when exporting from a local backup repository that another
+process is already updating.
 
 ## Encryption
 

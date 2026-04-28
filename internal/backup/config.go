@@ -28,6 +28,7 @@ type Options struct {
 	Identity       string
 	Recipients     []string
 	Push           bool
+	SkipPull       bool
 	AsyncPush      bool
 	PushQueueLimit int
 	Progress       func(format string, args ...any)

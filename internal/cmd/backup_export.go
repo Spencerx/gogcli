@@ -53,7 +53,9 @@ func (c *BackupCatCmd) Run(ctx context.Context) error {
 
 type BackupExportCmd struct {
 	backupReadFlags
-	Out string `name:"out" help:"Plaintext export directory" default:"~/Documents/gog-backup-export"`
+	Out              string `name:"out" help:"Plaintext export directory" default:"~/Documents/gog-backup-export"`
+	GmailFormat      string `name:"gmail-format" help:"Gmail message export format: eml, markdown, or both" default:"eml" enum:"eml,markdown,both"`
+	GmailAttachments string `name:"gmail-attachments" help:"Gmail attachment export mode for markdown/both: extract or none" default:"extract" enum:"extract,none"`
 }
 
 type backupExportResult struct {
@@ -64,14 +66,9 @@ type backupExportResult struct {
 	Counts         map[string]int `json:"counts"`
 }
 
-type gmailExportIndexEntry struct {
-	ID           string   `json:"id"`
-	ThreadID     string   `json:"threadId,omitempty"`
-	HistoryID    string   `json:"historyId,omitempty"`
-	InternalDate int64    `json:"internalDate,omitempty"`
-	LabelIDs     []string `json:"labelIds,omitempty"`
-	SizeEstimate int64    `json:"sizeEstimate,omitempty"`
-	EML          string   `json:"eml"`
+type backupExportOptions struct {
+	GmailFormat      string
+	GmailAttachments string
 }
 
 func (c *BackupExportCmd) Run(ctx context.Context) error {
@@ -101,11 +98,15 @@ func (c *BackupExportCmd) Run(ctx context.Context) error {
 	if manifestErr := writeJSONFile(filepath.Join(outDir, "manifest.json"), manifest); manifestErr != nil {
 		return manifestErr
 	}
-	if resetErr := resetExportIndexes(outDir, shards); resetErr != nil {
+	exportOpts := backupExportOptions{
+		GmailFormat:      c.GmailFormat,
+		GmailAttachments: c.GmailAttachments,
+	}
+	if resetErr := resetExportTargets(outDir, shards); resetErr != nil {
 		return resetErr
 	}
 	for _, shard := range shards {
-		_, count, shardErr := exportPlainShard(outDir, shard)
+		_, count, shardErr := exportPlainShard(outDir, shard, exportOpts)
 		if shardErr != nil {
 			return shardErr
 		}
@@ -205,24 +206,24 @@ func ensureExportOutsideRepo(outDir, repo string) error {
 	return nil
 }
 
-func resetExportIndexes(outDir string, shards []backup.PlainShard) error {
+func resetExportTargets(outDir string, shards []backup.PlainShard) error {
 	seen := map[string]struct{}{}
 	for _, shard := range shards {
-		index := ""
+		target := ""
 		switch {
 		case shard.Service == backupServiceGmail && shard.Kind == "messages":
-			index = filepath.Join(outDir, backupServiceGmail, sanitizeFilePart(shard.Account), "messages", "index.jsonl")
+			target = filepath.Join(outDir, backupServiceGmail, sanitizeFilePart(shard.Account), "messages")
 		case shard.Service == backupServiceDrive && shard.Kind == "contents":
-			index = filepath.Join(outDir, backupServiceDrive, sanitizeFilePart(shard.Account), "files", "index.jsonl")
+			target = filepath.Join(outDir, backupServiceDrive, sanitizeFilePart(shard.Account), "files", "index.jsonl")
 		}
-		if index == "" {
+		if target == "" {
 			continue
 		}
-		if _, ok := seen[index]; ok {
+		if _, ok := seen[target]; ok {
 			continue
 		}
-		seen[index] = struct{}{}
-		if err := os.Remove(index); err != nil && !os.IsNotExist(err) {
+		seen[target] = struct{}{}
+		if err := os.RemoveAll(target); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
@@ -235,9 +236,10 @@ func writeBackupExportReadme(outDir string) error {
 		"This directory is an unencrypted local copy created by `gog backup export`.\n" +
 		"Keep it out of Git, shared folders, and cloud sync unless that is intentional.\n" +
 		"\n" +
-		"Gmail messages are written as `.eml` files that can be opened by Mail and many\n" +
-		"mail clients. `gmail/<account>/messages/index.jsonl` maps backup message IDs\n" +
-		"to the exported `.eml` files. Labels are written as pretty JSON.\n"
+		"Gmail messages are written according to `--gmail-format`: `.eml` by default,\n" +
+		"Markdown notes with extracted attachment files when `--gmail-format markdown`,\n" +
+		"or both when `--gmail-format both`. `gmail/<account>/messages/index.jsonl`\n" +
+		"maps backup message IDs to exported files. Labels are written as pretty JSON.\n"
 	return os.WriteFile(filepath.Join(outDir, "README.md"), []byte(body), 0o600)
 }
 
@@ -253,14 +255,14 @@ func writeJSONFile(path string, value any) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-func exportPlainShard(outDir string, shard backup.PlainShard) (int, int, error) {
+func exportPlainShard(outDir string, shard backup.PlainShard, opts backupExportOptions) (int, int, error) {
 	switch {
 	case shard.Service == backupServiceDrive && shard.Kind == "contents":
 		return exportDriveContents(outDir, shard)
 	case shard.Service == backupServiceGmail && shard.Kind == "labels":
 		return exportGmailLabels(outDir, shard)
 	case shard.Service == backupServiceGmail && shard.Kind == "messages":
-		return exportGmailMessages(outDir, shard)
+		return exportGmailMessages(outDir, shard, opts)
 	default:
 		return exportRawShard(outDir, shard)
 	}
@@ -321,65 +323,6 @@ func exportDriveContents(outDir string, shard backup.PlainShard) (int, int, erro
 	return files + 1, len(rows), nil
 }
 
-func exportGmailLabels(outDir string, shard backup.PlainShard) (int, int, error) {
-	var labels []gmailBackupLabel
-	if err := backup.DecodeJSONL(shard.Plaintext, &labels); err != nil {
-		return 0, 0, err
-	}
-	path := filepath.Join(outDir, backupServiceGmail, sanitizeFilePart(shard.Account), "labels.json")
-	if err := writeJSONFile(path, labels); err != nil {
-		return 0, 0, err
-	}
-	return 1, len(labels), nil
-}
-
-func exportGmailMessages(outDir string, shard backup.PlainShard) (int, int, error) {
-	var messages []gmailBackupMessage
-	if err := backup.DecodeJSONL(shard.Plaintext, &messages); err != nil {
-		return 0, 0, err
-	}
-	account := sanitizeFilePart(shard.Account)
-	indexPath := filepath.Join(outDir, backupServiceGmail, account, "messages", "index.jsonl")
-	if err := os.MkdirAll(filepath.Dir(indexPath), 0o700); err != nil {
-		return 0, 0, err
-	}
-	indexFile, err := os.OpenFile(indexPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) // #nosec G304 -- path is confined to caller-selected export dir and sanitized account.
-	if err != nil {
-		return 0, 0, err
-	}
-	defer indexFile.Close()
-	enc := json.NewEncoder(indexFile)
-	enc.SetEscapeHTML(false)
-	files := 0
-	for _, message := range messages {
-		mime, err := decodeGmailRaw(message.Raw)
-		if err != nil {
-			return files, 0, fmt.Errorf("decode Gmail raw %s: %w", message.ID, err)
-		}
-		rel := backupExportMessagePath(account, message)
-		path := filepath.Join(outDir, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			return files, 0, err
-		}
-		if err := os.WriteFile(path, mime, 0o600); err != nil {
-			return files, 0, err
-		}
-		files++
-		if err := enc.Encode(gmailExportIndexEntry{
-			ID:           message.ID,
-			ThreadID:     message.ThreadID,
-			HistoryID:    message.HistoryID,
-			InternalDate: message.InternalDate,
-			LabelIDs:     message.LabelIDs,
-			SizeEstimate: message.SizeEstimate,
-			EML:          rel,
-		}); err != nil {
-			return files, 0, err
-		}
-	}
-	return files + 1, len(messages), nil
-}
-
 func exportRawShard(outDir string, shard backup.PlainShard) (int, int, error) {
 	rel := strings.TrimSuffix(shard.Path, ".gz.age")
 	path := filepath.Join(outDir, "raw", filepath.FromSlash(rel))
@@ -404,29 +347,6 @@ func countExportFiles(outDir string) (int, error) {
 		return nil
 	})
 	return count, err
-}
-
-func decodeGmailRaw(raw string) ([]byte, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil, fmt.Errorf("empty raw payload")
-	}
-	if data, err := base64.RawURLEncoding.DecodeString(raw); err == nil {
-		return data, nil
-	}
-	return base64.URLEncoding.DecodeString(raw)
-}
-
-func backupExportMessagePath(account string, message gmailBackupMessage) string {
-	timestamp := trackingUnknown
-	yearMonth := trackingUnknown
-	if message.InternalDate > 0 {
-		t := time.UnixMilli(message.InternalDate).UTC()
-		timestamp = t.Format("20060102T150405Z")
-		yearMonth = filepath.Join(fmt.Sprintf("%04d", t.Year()), fmt.Sprintf("%02d", int(t.Month())))
-	}
-	name := timestamp + "-" + sanitizeFilePart(message.ID) + ".eml"
-	return filepath.ToSlash(filepath.Join(backupServiceGmail, account, "messages", yearMonth, name))
 }
 
 func sanitizeFilePart(value string) string {

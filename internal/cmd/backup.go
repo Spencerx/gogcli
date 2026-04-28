@@ -71,6 +71,7 @@ type backupReadFlags struct {
 	Repo     string `name:"repo" help:"Local backup repository path"`
 	Remote   string `name:"remote" help:"Backup Git remote URL"`
 	Identity string `name:"identity" help:"Local age identity path"`
+	NoPull   bool   `name:"no-pull" help:"Use local backup repository state without pulling first"`
 }
 
 func (f backupReadFlags) options() backup.Options {
@@ -80,6 +81,7 @@ func (f backupReadFlags) options() backup.Options {
 		Remote:     f.Remote,
 		Identity:   f.Identity,
 		Push:       false,
+		SkipPull:   f.NoPull,
 	}
 }
 
