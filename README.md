@@ -26,7 +26,7 @@ Fast, script-friendly CLI for Gmail, Calendar, Chat, Classroom, Drive, Docs, Sli
 - **Groups** - list groups you belong to, view group members (Google Workspace)
 - **Local time** - quick local/UTC time display for scripts and agents
 - **Multiple accounts** - manage multiple Google accounts simultaneously, with account aliases and per-client OAuth buckets
-- **Command allowlist** - restrict top-level commands for sandboxed/agent runs
+- **Command allowlist + baked safety profiles** - restrict commands at runtime or build a fail-closed agent binary
 - **Secure credential storage** using OS keyring or encrypted on-disk keyring (configurable)
 - **Auto-refreshing tokens** - authenticate once, use indefinitely
 - **Flexible auth** - OAuth refresh tokens, ADC, direct access tokens, service accounts, manual/remote flows, `--extra-scopes`, and proxy-safe callbacks
@@ -584,6 +584,17 @@ gog tasks list <tasklistId>
 gog --gmail-no-send gmail send --to someone@example.com --subject Test --body Test
 gog config no-send set agent@example.com
 ```
+
+For stronger isolation, build a dedicated binary with an embedded safety profile:
+
+```bash
+./build-safe.sh safety-profiles/agent-safe.yaml -o bin/gog-agent-safe
+./build-safe.sh safety-profiles/readonly.yaml -o bin/gog-readonly
+```
+
+Baked profiles are checked after CLI parsing and before any command runs. They are
+fail-closed and cannot be changed by config, environment variables, or runtime
+allowlist flags. See `docs/safety-profiles.md`.
  
 ## Security
 
@@ -788,9 +799,10 @@ For a bounded first run:
 gog backup push --services gmail --account you@gmail.com --query 'newer_than:7d' --max 25
 ```
 
-Backups use age-encrypted JSONL gzip shards under `data/`. `gog` stores the
-private age identity locally at `~/.gog/age.key`; GitHub only receives public
-`age1...` recipients, `manifest.json`, and encrypted `*.jsonl.gz.age` payloads.
+Backups use age-encrypted JSONL gzip shards under `data/` and completed Gmail
+checkpoint shards under `checkpoints/`. `gog` stores the private age identity
+locally at `~/.gog/age.key`; GitHub only receives public `age1...` recipients,
+`manifest.json`, and encrypted `*.jsonl.gz.age` payloads.
 The private `AGE-SECRET-KEY-...` value must stay local or in a password manager.
 
 Supported backup services are `gmail`, `gmail-settings`, `calendar`,
@@ -810,9 +822,12 @@ by default (`--gmail-checkpoint-rows`, `--gmail-checkpoint-interval`,
 conservative plaintext byte ceiling to avoid GitHub blob rejections. Checkpoint
 commits push through a single ordered background queue so cached Gmail fetching
 can continue while GitHub uploads run; the final completed backup waits for the
-queue to drain before updating the authoritative manifest. Checkpoints live
-under `checkpoints/` and do not replace the authoritative `manifest.json` until
-the final backup completes. Use `--gmail-refresh-cache` to force a refetch.
+queue to drain before updating the authoritative manifest. When a cached Gmail
+run completes, the final manifest promotes the completed checkpoint message
+shards instead of re-encrypting the mailbox into a second giant Git push.
+Checkpoints live under `checkpoints/` and do not become authoritative until the
+final `manifest.json` references them. Use `--gmail-refresh-cache` to force a
+refetch.
 Workspace inventories
 Docs/Sheets/Slides and backs up Forms/responses discovered through Drive; add
 `--workspace-native` for full native Docs/Sheets/Slides API JSON.

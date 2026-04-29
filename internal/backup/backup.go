@@ -2,7 +2,6 @@
 package backup
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -71,13 +70,15 @@ type ShardEntry struct {
 }
 
 type PlainShard struct {
-	Service       string
-	Kind          string
-	Account       string
-	Path          string
-	Rows          int
-	Plaintext     []byte
-	PlaintextPath string
+	Service            string
+	Kind               string
+	Account            string
+	Path               string
+	Rows               int
+	Plaintext          []byte
+	PlaintextPath      string
+	Existing           *ShardEntry
+	ExistingRecipients []string
 }
 
 type Snapshot struct {
@@ -240,10 +241,7 @@ func Verify(ctx context.Context, opts Options) (Result, error) {
 		if got := sha256Hex(plaintext); got != shard.SHA256 {
 			return Result{}, fmt.Errorf("backup shard hash mismatch for %s", shard.Path)
 		}
-		rows, err := countJSONLLines(plaintext)
-		if err != nil {
-			return Result{}, fmt.Errorf("count rows in %s: %w", shard.Path, err)
-		}
+		rows := countJSONLLines(plaintext)
 		if rows != shard.Rows {
 			return Result{}, fmt.Errorf("backup shard row count mismatch for %s: got %d, want %d", shard.Path, rows, shard.Rows)
 		}
@@ -284,6 +282,22 @@ func NewJSONLShard(service, kind, account, rel string, rows any) (PlainShard, er
 		Rows:      count,
 		Plaintext: plaintext,
 	}, nil
+}
+
+func ExistingShard(entry ShardEntry, recipients []string) PlainShard {
+	return PlainShard{
+		Service:            strings.TrimSpace(entry.Service),
+		Kind:               strings.TrimSpace(entry.Kind),
+		Account:            strings.TrimSpace(entry.Account),
+		Path:               filepath.ToSlash(entry.Path),
+		Rows:               entry.Rows,
+		Existing:           &entry,
+		ExistingRecipients: append([]string(nil), recipients...),
+	}
+}
+
+func ReadCheckpointManifest(repo, rel string) (CheckpointManifest, error) {
+	return readCheckpointManifest(repo, rel)
 }
 
 func writeCheckpoint(ctx context.Context, cfg Config, snapshot Snapshot, checkpoint Checkpoint) (CheckpointManifest, error) {
@@ -456,6 +470,40 @@ func writeShard(cfg Config, old Manifest, shard PlainShard, reuseEncrypted bool)
 	if strings.TrimSpace(shard.Service) == "" {
 		return ShardEntry{}, fmt.Errorf("backup shard service is required")
 	}
+	if shard.Existing != nil {
+		if len(shard.ExistingRecipients) > 0 && !sameStrings(shard.ExistingRecipients, cfg.Recipients) {
+			return ShardEntry{}, fmt.Errorf("backup shard %s was encrypted for different recipients", shard.Existing.Path)
+		}
+		entry := *shard.Existing
+		if strings.TrimSpace(entry.Service) == "" {
+			entry.Service = shard.Service
+		}
+		if strings.TrimSpace(entry.Kind) == "" {
+			entry.Kind = shard.Kind
+		}
+		if strings.TrimSpace(entry.Account) == "" {
+			entry.Account = shard.Account
+		}
+		if strings.TrimSpace(entry.Path) == "" {
+			entry.Path = shard.Path
+		}
+		if entry.Rows == 0 {
+			entry.Rows = shard.Rows
+		}
+		path, err := resolveShardPath(cfg.Repo, entry.Path)
+		if err != nil {
+			return ShardEntry{}, err
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			return ShardEntry{}, fmt.Errorf("reuse encrypted backup shard %s: %w", entry.Path, err)
+		}
+		if entry.Bytes > 0 && info.Size() != entry.Bytes {
+			return ShardEntry{}, fmt.Errorf("reuse encrypted backup shard %s: size changed from %d to %d", entry.Path, entry.Bytes, info.Size())
+		}
+		entry.Bytes = info.Size()
+		return entry, nil
+	}
 	hash, err := shardPlaintextHash(shard)
 	if err != nil {
 		return ShardEntry{}, err
@@ -572,28 +620,32 @@ func encodeJSONL(rows any) ([]byte, int, error) {
 }
 
 func DecodeJSONL[T any](plaintext []byte, out *[]T) error {
-	scanner := bufio.NewScanner(bytes.NewReader(plaintext))
-	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
-	for scanner.Scan() {
+	for _, line := range jsonlLines(plaintext) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
 		var value T
-		if err := json.Unmarshal(scanner.Bytes(), &value); err != nil {
+		if err := json.Unmarshal(line, &value); err != nil {
 			return err
 		}
 		*out = append(*out, value)
 	}
-	return scanner.Err()
+	return nil
 }
 
-func countJSONLLines(plaintext []byte) (int, error) {
-	scanner := bufio.NewScanner(bytes.NewReader(plaintext))
-	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+func countJSONLLines(plaintext []byte) int {
 	count := 0
-	for scanner.Scan() {
-		if len(bytes.TrimSpace(scanner.Bytes())) > 0 {
+	for _, line := range jsonlLines(plaintext) {
+		if len(bytes.TrimSpace(line)) > 0 {
 			count++
 		}
 	}
-	return count, scanner.Err()
+	return count
+}
+
+func jsonlLines(plaintext []byte) [][]byte {
+	return bytes.Split(plaintext, []byte{'\n'})
 }
 
 func readManifest(repo string) (Manifest, error) {
