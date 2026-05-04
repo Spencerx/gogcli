@@ -55,10 +55,11 @@ type GmailThreadCmd struct {
 }
 
 type GmailThreadGetCmd struct {
-	ThreadID  string        `arg:"" name:"threadId" help:"Thread ID"`
-	Download  bool          `name:"download" help:"Download attachments"`
-	Full      bool          `name:"full" help:"Show full message bodies"`
-	OutputDir OutputDirFlag `embed:""`
+	ThreadID        string        `arg:"" name:"threadId" help:"Thread ID"`
+	Download        bool          `name:"download" help:"Download attachments"`
+	Full            bool          `name:"full" help:"Show full message bodies"`
+	SanitizeContent bool          `name:"sanitize-content" aliases:"sanitize,safe" help:"Emit agent-oriented sanitized content: strip HTML, remove HTTP(S) URLs, and omit raw Gmail payloads from JSON"`
+	OutputDir       OutputDirFlag `embed:""`
 }
 
 func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -111,6 +112,12 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 				downloadedFiles = append(downloadedFiles, attachmentDownloadSummaries(downloads)...)
 			}
 		}
+		if c.SanitizeContent {
+			return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+				"thread":     sanitizedGmailThread(thread, true),
+				"downloaded": downloadedFiles,
+			})
+		}
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
 			"thread":     thread,
 			"downloaded": downloadedFiles,
@@ -130,16 +137,25 @@ func (c *GmailThreadGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 			continue
 		}
 		u.Out().Printf("=== Message %d/%d: %s ===", i+1, len(thread.Messages), msg.Id)
-		u.Out().Printf("From: %s", headerValue(msg.Payload, "From"))
-		u.Out().Printf("To: %s", headerValue(msg.Payload, "To"))
-		u.Out().Printf("Subject: %s", headerValue(msg.Payload, "Subject"))
-		u.Out().Printf("Date: %s", headerValue(msg.Payload, "Date"))
+		header := func(name string) string {
+			value := headerValue(msg.Payload, name)
+			if c.SanitizeContent {
+				return sanitizeGmailText(value)
+			}
+			return value
+		}
+		u.Out().Printf("From: %s", header("From"))
+		u.Out().Printf("To: %s", header("To"))
+		u.Out().Printf("Subject: %s", header("Subject"))
+		u.Out().Printf("Date: %s", header("Date"))
 		u.Out().Println("")
 
 		body, isHTML := bestBodyForDisplay(msg.Payload)
 		if body != "" {
 			cleanBody := body
-			if isHTML {
+			if c.SanitizeContent {
+				cleanBody = sanitizeGmailBody(body, isHTML)
+			} else if isHTML {
 				// Strip HTML tags for cleaner text output
 				cleanBody = stripHTMLTags(body)
 			}

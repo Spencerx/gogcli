@@ -742,8 +742,10 @@ gog gmail search 'newer_than:7d' --max 10
 gog gmail thread get <threadId>
 gog gmail thread get <threadId> --download              # Download attachments to current dir
 gog gmail thread get <threadId> --download --out-dir ./attachments
+gog gmail thread get <threadId> --sanitize-content      # Agent-oriented sanitized content output
 gog gmail get <messageId>
 gog gmail get <messageId> --format metadata
+gog gmail get <messageId> --sanitize-content            # Agent-oriented sanitized content output
 gog gmail attachment <messageId> <attachmentId>
 gog gmail attachment <messageId> <attachmentId> --out ./attachment.bin
 gog gmail url <threadId>              # Print Gmail web URL
@@ -829,6 +831,16 @@ Gmail watch (Pub/Sub push):
 - Full flow + payload details: `docs/watch.md`.
 - `watch serve --fetch-delay` defaults to `3s` and helps avoid Gmail History indexing races after push delivery.
 - `watch serve --exclude-labels` defaults to `SPAM,TRASH`; IDs are case-sensitive.
+
+Sanitized Gmail content (`--sanitize-content`, alias `--safe`):
+- Converts HTML bodies to text with an HTML parser and removes script/style content.
+- Replaces HTTP(S) URLs with `[url removed]` after decoding HTML entities.
+- Omits raw Gmail `payload`/RFC822 data and unsubscribe links from sanitized JSON envelopes.
+- Rejects `gmail get --format raw`, because raw output cannot be sanitized.
+
+This reduces prompt-injection, phishing-link, and tracking-link exposure for agents.
+It is not a sandbox; use command guards or baked safety profiles for command
+boundaries.
 
 ### Encrypted Backup
 
