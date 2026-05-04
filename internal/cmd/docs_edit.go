@@ -33,15 +33,16 @@ func resolveTabArg(ctx context.Context, tab, tabID string) (string, error) {
 }
 
 type DocsWriteCmd struct {
-	DocID    string `arg:"" name:"docId" help:"Doc ID"`
-	Text     string `name:"text" help:"Text to write"`
-	File     string `name:"file" help:"Text file path ('-' for stdin)"`
-	Replace  bool   `name:"replace" help:"Replace all content explicitly (required with --markdown unless --append is set)"`
-	Markdown bool   `name:"markdown" help:"Convert markdown to Google Docs formatting (requires --replace or --append)"`
-	Append   bool   `name:"append" help:"Append instead of replacing the document body"`
-	Pageless bool   `name:"pageless" help:"Set document to pageless mode"`
-	Tab      string `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
-	TabID    string `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	DocID    string          `arg:"" name:"docId" help:"Doc ID"`
+	Text     string          `name:"text" help:"Text to write"`
+	File     string          `name:"file" help:"Text file path ('-' for stdin)"`
+	Replace  bool            `name:"replace" help:"Replace all content explicitly (required with --markdown unless --append is set)"`
+	Markdown bool            `name:"markdown" help:"Convert markdown to Google Docs formatting (requires --replace or --append)"`
+	Append   bool            `name:"append" help:"Append instead of replacing the document body"`
+	Pageless bool            `name:"pageless" help:"Set document to pageless mode"`
+	Tab      string          `name:"tab" help:"Target a specific tab by title or ID (see docs list-tabs)"`
+	TabID    string          `name:"tab-id" hidden:"" help:"(deprecated) Use --tab"`
+	Format   DocsFormatFlags `embed:""`
 }
 
 func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootFlags) error {
@@ -65,6 +66,9 @@ func (c *DocsWriteCmd) Run(ctx context.Context, kctx *kong.Context, flags *RootF
 	c.Tab = tab
 
 	if c.Markdown {
+		if c.Format.any() {
+			return usage("formatting flags are only supported for plain-text docs write; use markdown syntax or run docs format after writing")
+		}
 		return c.writeMarkdown(ctx, flags, id, text)
 	}
 
@@ -101,7 +105,10 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, doc
 		insertIndex = docsAppendIndex(endIndex)
 	}
 
-	reqs := c.buildPlainWriteRequests(endIndex, insertIndex, text)
+	reqs, err := c.buildPlainWriteRequests(endIndex, insertIndex, text)
+	if err != nil {
+		return err
+	}
 	resp, err := svc.Documents.BatchUpdate(docID, &docs.BatchUpdateDocumentRequest{Requests: reqs}).Context(ctx).Do()
 	if err != nil {
 		if isDocsNotFound(err) {
@@ -116,7 +123,7 @@ func (c *DocsWriteCmd) writePlainText(ctx context.Context, flags *RootFlags, doc
 	return c.writePlainTextResult(ctx, resp, len(reqs), insertIndex)
 }
 
-func (c *DocsWriteCmd) buildPlainWriteRequests(endIndex, insertIndex int64, text string) []*docs.Request {
+func (c *DocsWriteCmd) buildPlainWriteRequests(endIndex, insertIndex int64, text string) ([]*docs.Request, error) {
 	reqs := make([]*docs.Request, 0, 2)
 	if !c.Append {
 		deleteEnd := endIndex - 1
@@ -134,7 +141,14 @@ func (c *DocsWriteCmd) buildPlainWriteRequests(endIndex, insertIndex int64, text
 			Text:     text,
 		},
 	})
-	return reqs
+	if c.Format.any() {
+		formatReqs, err := c.Format.buildRequests(insertIndex, insertIndex+utf16Len(text), c.Tab)
+		if err != nil {
+			return nil, err
+		}
+		reqs = append(reqs, formatReqs...)
+	}
+	return reqs, nil
 }
 
 func (c *DocsWriteCmd) applyPageless(ctx context.Context, svc *docs.Service, docID string) error {

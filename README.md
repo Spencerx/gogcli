@@ -1191,9 +1191,13 @@ gog docs update <docId> --text "Only in this tab" --tab "Notes"
 gog docs update <docId> --file ./insert.txt --index 25 --pageless
 gog docs write <docId> --text "Fresh content"
 gog docs write <docId> --text "Rewrite one tab" --tab "Notes"
+gog docs write <docId> --text "Important" --bold --text-color "#3366cc"
 gog docs write <docId> --file ./body.txt --append --pageless
 gog docs write <docId> --file ./body.md --replace --markdown
 gog docs write <docId> --file ./body.md --append --markdown
+gog docs format <docId> --match "Important" --bold --bg-color "#fff2cc"
+gog docs format <docId> --match "todo" --match-all --no-bold --underline
+gog docs format <docId> --alignment center --line-spacing 150
 gog docs find-replace <docId> "old" "new"
 gog docs find-replace <docId> "old" "new" --tab "Notes"
 gog docs raw <docId>                                # Lossless JSON dump of Documents.Get (LLM/scripting)

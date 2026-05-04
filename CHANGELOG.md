@@ -6,6 +6,7 @@
 - Install: publish a GHCR Docker image for release tags, with a non-root runtime image and file-keyring docs for container automation. (#539, #444) — thanks @HuckOps and @rdehuyss.
 - Gmail: add `--sanitize-content` (`--safe`) to `gmail get` and `gmail thread get` for agent-oriented sanitized content output without raw Gmail payloads in JSON. (#238, #220) — thanks @urasmutlu.
 - Raw API dumps: add `docs raw`, `sheets raw`, `slides raw`, `drive raw`, `gmail raw`, `calendar raw`, `people raw`, `contacts raw`, `tasks raw`, and `forms raw` subcommands for lossless Google API JSON output, with `--pretty`, Drive raw redaction defaults, Sheets grid-data warnings, and a raw-output security audit. (#495, #496) — thanks @karbassi.
+- Docs: add `docs format` and plain-text `docs write` formatting flags for fonts, colors, bold/italic/underline/strikethrough, alignment, and line spacing. (#479) — thanks @mmaghsoodnia.
 - Drive: add `--fields` to `drive ls` and `drive get` so callers can pass Drive API field masks for fields beyond the default JSON set. (#495) — thanks @karbassi.
 - Agent safety: add baked safety-profile builds for fail-closed agent binaries, with `agent-safe`, `readonly`, and `full` profiles, filtered help/schema output, docs, and build tooling. (#366, #239) — thanks @drewburchfield.
 - Calendar: add `--with-meet` to `calendar update` for adding Google Meet conferencing to existing events. (#538) — thanks @alexisperumal.

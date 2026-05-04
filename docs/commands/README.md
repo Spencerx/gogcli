@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 450.
+Generated pages: 451.
 
 ## Top-level Commands
 
@@ -265,6 +265,7 @@ Generated pages: 450.
     - [gog docs edit](gog-docs-edit.md) - Find and replace text in a Google Doc
     - [gog docs export](gog-docs-export.md) - Export a Google Doc (pdf|docx|txt|md|html)
     - [gog docs find-replace](gog-docs-find-replace.md) - Find and replace text. Supports plain text or markdown with images; use --first for a single occurrence.
+    - [gog docs format](gog-docs-format.md) - Apply text or paragraph formatting to a Google Doc
     - [gog docs info](gog-docs-info.md) - Get Google Doc metadata
     - [gog docs insert](gog-docs-insert.md) - Insert text at a specific position
     - [gog docs list-tabs](gog-docs-list-tabs.md) - List all tabs in a Google Doc

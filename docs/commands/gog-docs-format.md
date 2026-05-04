@@ -1,13 +1,13 @@
-# `gog docs write`
+# `gog docs format`
 
 > Generated from `gog schema --json`. Do not edit this page by hand; run `make docs-commands`.
 
-Write content to a Google Doc
+Apply text or paragraph formatting to a Google Doc
 
 ## Usage
 
 ```bash
-gog docs (doc) write <docId> [flags]
+gog docs (doc) format <docId> [flags]
 ```
 
 ## Parent
@@ -21,7 +21,6 @@ gog docs (doc) write <docId> [flags]
 | `--access-token` | `string` |  | Use provided access token directly (bypasses stored refresh tokens; token expires in ~1h) |
 | `-a`<br>`--account`<br>`--acct` | `string` |  | Account email for API commands (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript/ads) |
 | `--alignment` | `string` |  | Paragraph alignment: left, center, right, justify, start, end, justified |
-| `--append` | `bool` |  | Append instead of replacing the document body |
 | `--bg-color` | `string` |  | Text background color as #RRGGBB or #RGB |
 | `--bold` | `bool` |  | Set bold |
 | `--client` | `string` |  | OAuth client name (selects stored credentials + token bucket) |
@@ -29,7 +28,6 @@ gog docs (doc) write <docId> [flags]
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
 | `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
-| `--file` | `string` |  | Text file path ('-' for stdin) |
 | `--font-family` | `string` |  | Font family, for example Arial or Georgia |
 | `--font-size` | `float64` |  | Font size in points |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
@@ -38,20 +36,19 @@ gog docs (doc) write <docId> [flags]
 | `--italic` | `bool` |  | Set italic |
 | `-j`<br>`--json`<br>`--machine` | `bool` | false | Output JSON to stdout (best for scripting) |
 | `--line-spacing` | `float64` |  | Paragraph line spacing percentage, for example 100 or 150 |
-| `--markdown` | `bool` |  | Convert markdown to Google Docs formatting (requires --replace or --append) |
+| `--match` | `string` |  | Only format the first text match |
+| `--match-all` | `bool` |  | Format all matches instead of only the first |
+| `--match-case` | `bool` |  | Use case-sensitive matching with --match |
 | `--no-bold` | `bool` |  | Clear bold |
 | `--no-input`<br>`--non-interactive`<br>`--noninteractive` | `bool` |  | Never prompt; fail instead (useful for CI) |
 | `--no-italic` | `bool` |  | Clear italic |
 | `--no-strikethrough`<br>`--no-strike` | `bool` |  | Clear strikethrough |
 | `--no-underline` | `bool` |  | Clear underline |
-| `--pageless` | `bool` |  | Set document to pageless mode |
 | `-p`<br>`--plain`<br>`--tsv` | `bool` | false | Output stable, parseable text to stdout (TSV; no colors) |
-| `--replace` | `bool` |  | Replace all content explicitly (required with --markdown unless --append is set) |
 | `--results-only` | `bool` |  | In JSON mode, emit only the primary result (drops envelope fields like nextPageToken) |
 | `--select`<br>`--pick`<br>`--project` | `string` |  | In JSON mode, select comma-separated fields (best-effort; supports dot paths). Desire path: use --fields for most commands. |
 | `--strikethrough`<br>`--strike` | `bool` |  | Set strikethrough |
 | `--tab` | `string` |  | Target a specific tab by title or ID (see docs list-tabs) |
-| `--text` | `string` |  | Text to write |
 | `--text-color` | `string` |  | Text color as #RRGGBB or #RGB |
 | `--underline` | `bool` |  | Set underline |
 | `-v`<br>`--verbose` | `bool` |  | Enable verbose logging |
