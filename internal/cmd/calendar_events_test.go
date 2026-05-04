@@ -276,6 +276,105 @@ func TestCalendarEventsCmd_CalendarsFlag(t *testing.T) {
 	}
 }
 
+func TestCalendarEventsCmd_ListSelectorAllowsCalFlag(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	svc, closeServer := newCalendarServiceForTest(t, withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/calendarList") &&
+			!strings.Contains(r.URL.Path, "/calendarList/primary") &&
+			r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{{"id": "c1", "summary": "Work", "timeZone": "UTC"}},
+			})
+			return
+		case r.URL.Path == "/calendars/c1" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "c1", "timeZone": "UTC"})
+			return
+		case strings.Contains(r.URL.Path, "/calendars/c1/events") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{{"id": "e1", "summary": "Event"}}})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	})))
+	defer closeServer()
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	ctx := newCalendarJSONContext(t)
+	flags := &RootFlags{Account: "a@b.com"}
+	cmd := &CalendarEventsCmd{}
+
+	out := captureStdout(t, func() {
+		if err := runKong(t, cmd, []string{
+			"list",
+			"--cal", "Work",
+			"--from", "2025-01-01T00:00:00Z",
+			"--to", "2025-01-02T00:00:00Z",
+		}, ctx, flags); err != nil {
+			t.Fatalf("calendar events list --cal: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, `"events"`) || !strings.Contains(out, `"Event"`) {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
+func TestCalendarEventsCmd_ListSelectorAllowsPositionalCalendar(t *testing.T) {
+	origNew := newCalendarService
+	t.Cleanup(func() { newCalendarService = origNew })
+
+	svc, closeServer := newCalendarServiceForTest(t, withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/calendarList") &&
+			!strings.Contains(r.URL.Path, "/calendarList/primary") &&
+			r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{{"id": "c1", "summary": "Work", "timeZone": "UTC"}},
+			})
+			return
+		case r.URL.Path == "/calendars/c1" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "c1", "timeZone": "UTC"})
+			return
+		case strings.Contains(r.URL.Path, "/calendars/c1/events") && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{{"id": "e1", "summary": "Event"}}})
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	})))
+	defer closeServer()
+	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+
+	ctx := newCalendarJSONContext(t)
+	flags := &RootFlags{Account: "a@b.com"}
+	cmd := &CalendarEventsCmd{}
+
+	out := captureStdout(t, func() {
+		if err := runKong(t, cmd, []string{
+			"list", "Work",
+			"--from", "2025-01-01T00:00:00Z",
+			"--to", "2025-01-02T00:00:00Z",
+		}, ctx, flags); err != nil {
+			t.Fatalf("calendar events list Work: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, `"events"`) || !strings.Contains(out, `"Event"`) {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
 func TestResolveCalendarIDs_IndexOutOfRange(t *testing.T) {
 	svc, closeServer := newCalendarServiceForTest(t, withPrimaryCalendar(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/calendarList") &&
