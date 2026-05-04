@@ -23,6 +23,7 @@ gog contacts (contact) <command> [flags]
 - [gog contacts get](gog-contacts-get.md) - Get a contact
 - [gog contacts list](gog-contacts-list.md) - List contacts
 - [gog contacts other](gog-contacts-other.md) - Other contacts
+- [gog contacts raw](gog-contacts-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
 - [gog contacts search](gog-contacts-search.md) - Search contacts by name/email/phone
 - [gog contacts update](gog-contacts-update.md) - Update a contact
 

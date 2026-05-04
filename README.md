@@ -1159,6 +1159,15 @@ gog drive unshare <fileId> --permission-id <permissionId>
 
 # Shared drives (Team Drives)
 gog drive drives --max 100
+
+# Request extra fields from the Drive API (closes #486)
+gog drive ls --fields "files(id,name,thumbnailLink),nextPageToken"
+gog drive get <fileId> --fields "id,name,thumbnailLink,imageMediaMetadata"
+
+# Raw API dump (lossless JSON for scripting/LLMs)
+gog drive raw <fileId>                            # fields=*, sensitive fields redacted by default
+gog drive raw <fileId> --fields "id,name,thumbnailLink"  # honors user-named fields verbatim
+gog drive raw <fileId> --pretty
 ```
 
 ### Docs / Slides / Sheets
@@ -1187,6 +1196,8 @@ gog docs write <docId> --file ./body.md --replace --markdown
 gog docs write <docId> --file ./body.md --append --markdown
 gog docs find-replace <docId> "old" "new"
 gog docs find-replace <docId> "old" "new" --tab "Notes"
+gog docs raw <docId>                                # Lossless JSON dump of Documents.Get (LLM/scripting)
+gog docs raw <docId> --pretty
 
 # Slides
 gog slides info <presentationId>
@@ -1204,6 +1215,7 @@ gog slides insert-text <presentationId> <objectId> - < long-content.md
 gog slides insert-text <presentationId> <objectId> "New body" --replace
 gog slides replace-text <presentationId> "{{name}}" "Acme Corp"
 gog slides replace-text <presentationId> "TODO" "DONE" --match-case --page <slideId1> --page <slideId2>
+gog slides raw <presentationId>                     # Lossless JSON dump of Presentations.Get
 
 # Sheets
 gog sheets copy <spreadsheetId> "My Sheet Copy"
@@ -1223,7 +1235,35 @@ gog sheets links <spreadsheetId> 'Sheet1!A1:B10'
 gog sheets add-tab <spreadsheetId> <tabName> --index 0
 gog sheets rename-tab <spreadsheetId> <oldName> <newName>
 gog sheets delete-tab <spreadsheetId> <tabName> --force
+gog sheets raw <spreadsheetId>                       # Lossless JSON dump of Spreadsheets.Get
+gog sheets raw <spreadsheetId> --include-grid-data   # Include cell-level data (off by default)
+
+# Other raw dumps (gmail, calendar, people, contacts, tasks, forms)
+gog gmail raw <messageId>                            # Lossless JSON dump of Users.Messages.Get (default format=full)
+gog gmail raw <messageId> --format raw               # Gmail's native format=raw (base64url RFC822)
+gog calendar raw <calendarId> <eventId>              # Lossless JSON dump of Events.Get
+gog people raw people/<resourceName>                 # Lossless JSON dump of People.Get
+gog contacts raw people/<resourceName>               # Same endpoint, exposed under the contacts group
+gog tasks raw <tasklistId> <taskId>                  # Lossless JSON dump of Tasks.Get
+gog forms raw <formId>                               # Lossless JSON dump of Forms.Get
 ```
+
+**Raw vs other read subcommands.** Use `raw` when you need the full
+canonical Google API response as JSON (e.g. feeding a doc into an LLM,
+or scripting against structural fields `cat`/`structure` drop). Other
+read commands are lossier on purpose:
+
+- `docs info`, `sheets metadata`, `slides info`, `drive get` → metadata only (cheap)
+- `docs cat`, `docs structure` → plain text / simplified structure
+- `docs export`, `sheets export`, `slides export`, `drive download` → converted file formats (pdf/docx/xlsx/pptx/md)
+- `<group> raw` → full API response as JSON (verbose, lossless)
+
+`drive raw` defaults to `fields=*` and redacts a small set of
+capability/token-shaped fields (thumbnailLink, webContentLink,
+exportLinks, resourceKey, appProperties, properties,
+contentHints.thumbnail.image). When `--fields` is supplied the response
+is returned verbatim — the user named the field, they get it. See
+[`docs/raw-audit.md`](docs/raw-audit.md) for the redaction rationale.
 
 ### Contacts
 

@@ -18,6 +18,7 @@ gog people (person) <command> [flags]
 
 - [gog people get](gog-people-get.md) - Get a user profile by ID
 - [gog people me](gog-people-me.md) - Show your profile (people/me)
+- [gog people raw](gog-people-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
 - [gog people relations](gog-people-relations.md) - Get user relations
 - [gog people search](gog-people-search.md) - Search the Workspace directory
 

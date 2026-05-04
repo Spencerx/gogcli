@@ -7,7 +7,7 @@ Get file metadata
 ## Usage
 
 ```bash
-gog drive (drv) get <fileId>
+gog drive (drv) get <fileId> [flags]
 ```
 
 ## Parent
@@ -25,6 +25,7 @@ gog drive (drv) get <fileId>
 | `--disable-commands` | `string` |  | Comma-separated list of disabled commands; dot paths allowed |
 | `-n`<br>`--dry-run`<br>`--dryrun`<br>`--noop`<br>`--preview` | `bool` |  | Do not make changes; print intended actions and exit successfully |
 | `--enable-commands` | `string` |  | Comma-separated list of enabled commands; dot paths allowed (restricts CLI) |
+| `--fields` | `string` |  | Drive API field mask (overrides the default set; e.g. 'id,name,thumbnailLink') |
 | `-y`<br>`--force`<br>`--assume-yes`<br>`--yes` | `bool` |  | Skip confirmations for destructive commands |
 | `--gmail-no-send` | `bool` | false | Block Gmail send operations (agent safety) |
 | `-h`<br>`--help` | `kong.helpFlag` |  | Show context-sensitive help. |

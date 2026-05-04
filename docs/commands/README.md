@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 440.
+Generated pages: 450.
 
 ## Top-level Commands
 
@@ -120,6 +120,7 @@ Generated pages: 440.
     - [gog calendar move](gog-calendar-move.md) - Move an event to another calendar
     - [gog calendar out-of-office](gog-calendar-out-of-office.md) - Create an Out of Office event
     - [gog calendar propose-time](gog-calendar-propose-time.md) - Generate URL to propose a new meeting time (browser-only feature)
+    - [gog calendar raw](gog-calendar-raw.md) - Dump raw Google Calendar API response as JSON (Events.Get; lossless; for scripting and LLM consumption)
     - [gog calendar respond](gog-calendar-respond.md) - Respond to an event invitation
     - [gog calendar search](gog-calendar-search.md) - Search events
     - [gog calendar subscribe](gog-calendar-subscribe.md) - Add a calendar to your calendar list
@@ -243,6 +244,7 @@ Generated pages: 440.
       - [gog contacts other delete](gog-contacts-other-delete.md) - Delete an other contact
       - [gog contacts other list](gog-contacts-other-list.md) - List other contacts
       - [gog contacts other search](gog-contacts-other-search.md) - Search other contacts
+    - [gog contacts raw](gog-contacts-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
     - [gog contacts search](gog-contacts-search.md) - Search contacts by name/email/phone
     - [gog contacts update](gog-contacts-update.md) - Update a contact
   - [gog docs](gog-docs.md) - Google Docs (export via Drive)
@@ -266,6 +268,7 @@ Generated pages: 440.
     - [gog docs info](gog-docs-info.md) - Get Google Doc metadata
     - [gog docs insert](gog-docs-insert.md) - Insert text at a specific position
     - [gog docs list-tabs](gog-docs-list-tabs.md) - List all tabs in a Google Doc
+    - [gog docs raw](gog-docs-raw.md) - Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)
     - [gog docs rename-tab](gog-docs-rename-tab.md) - Rename a tab in a Google Doc
     - [gog docs sed](gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
     - [gog docs structure](gog-docs-structure.md) - Show document structure with numbered paragraphs
@@ -289,6 +292,7 @@ Generated pages: 440.
     - [gog drive mkdir](gog-drive-mkdir.md) - Create a folder
     - [gog drive move](gog-drive-move.md) - Move a file to a different folder
     - [gog drive permissions](gog-drive-permissions.md) - List permissions on a file
+    - [gog drive raw](gog-drive-raw.md) - Dump raw Google Drive API response as JSON (Files.Get; lossless; for scripting and LLM consumption)
     - [gog drive rename](gog-drive-rename.md) - Rename a file or folder
     - [gog drive search](gog-drive-search.md) - Full-text search across Drive
     - [gog drive share](gog-drive-share.md) - Share a file or folder
@@ -302,6 +306,7 @@ Generated pages: 440.
     - [gog forms delete-question](gog-forms-delete-question.md) - Delete a question by index
     - [gog forms get](gog-forms-get.md) - Get a form
     - [gog forms move-question](gog-forms-move-question.md) - Move a question to a new position
+    - [gog forms raw](gog-forms-raw.md) - Dump raw Google Forms API response as JSON (Forms.Get; lossless; for scripting and LLM consumption)
     - [gog forms responses](gog-forms-responses.md) - Form responses
       - [gog forms responses get](gog-forms-responses-get.md) - Get a form response
       - [gog forms responses list](gog-forms-responses-list.md) - List form responses
@@ -340,6 +345,7 @@ Generated pages: 440.
     - [gog gmail messages](gog-gmail-messages.md) - Message operations
       - [gog gmail messages modify](gog-gmail-messages-modify.md) - Modify labels on a single message
       - [gog gmail messages search](gog-gmail-messages-search.md) - Search messages using Gmail query syntax
+    - [gog gmail raw](gog-gmail-raw.md) - Dump raw Gmail API response as JSON (Users.Messages.Get; lossless; for scripting and LLM consumption)
     - [gog gmail search](gog-gmail-search.md) - Search threads using Gmail query syntax
     - [gog gmail send](gog-gmail-send.md) - Send an email
     - [gog gmail settings](gog-gmail-settings.md) - Settings and admin
@@ -409,6 +415,7 @@ Generated pages: 440.
   - [gog people](gog-people.md) - Google People
     - [gog people get](gog-people-get.md) - Get a user profile by ID
     - [gog people me](gog-people-me.md) - Show your profile (people/me)
+    - [gog people raw](gog-people-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
     - [gog people relations](gog-people-relations.md) - Get user relations
     - [gog people search](gog-people-search.md) - Search the Workspace directory
   - [gog schema](gog-schema.md) - Machine-readable command/flag schema
@@ -444,6 +451,7 @@ Generated pages: 440.
       - [gog sheets named-ranges update](gog-sheets-named-ranges-update.md) - Update a named range
     - [gog sheets notes](gog-sheets-notes.md) - Get cell notes from a range
     - [gog sheets number-format](gog-sheets-number-format.md) - Apply number format to a range
+    - [gog sheets raw](gog-sheets-raw.md) - Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)
     - [gog sheets read-format](gog-sheets-read-format.md) - Read cell formatting from a range
     - [gog sheets rename-tab](gog-sheets-rename-tab.md) - Rename a tab/sheet in a spreadsheet
     - [gog sheets resize-columns](gog-sheets-resize-columns.md) - Resize sheet columns
@@ -462,6 +470,7 @@ Generated pages: 440.
     - [gog slides info](gog-slides-info.md) - Get Google Slides presentation metadata
     - [gog slides insert-text](gog-slides-insert-text.md) - Insert text into an existing page element (shape or table) by objectId
     - [gog slides list-slides](gog-slides-list-slides.md) - List all slides with their object IDs
+    - [gog slides raw](gog-slides-raw.md) - Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)
     - [gog slides read-slide](gog-slides-read-slide.md) - Read slide content: speaker notes, text elements, and images
     - [gog slides replace-slide](gog-slides-replace-slide.md) - Replace the image on an existing slide in-place
     - [gog slides replace-text](gog-slides-replace-text.md) - Find-and-replace text across a presentation
@@ -478,6 +487,7 @@ Generated pages: 440.
     - [gog tasks lists](gog-tasks-lists.md) - List task lists
       - [gog tasks lists create](gog-tasks-lists-create.md) - Create a task list
       - [gog tasks lists list](gog-tasks-lists-list.md) - List task lists
+    - [gog tasks raw](gog-tasks-raw.md) - Dump raw Google Tasks API response as JSON (Tasks.Get; lossless; for scripting and LLM consumption)
     - [gog tasks undo](gog-tasks-undo.md) - Mark task needs action
     - [gog tasks update](gog-tasks-update.md) - Update a task
   - [gog time](gog-time.md) - Local time utilities

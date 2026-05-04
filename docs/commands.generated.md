@@ -77,6 +77,7 @@ Generated from `gog schema --json`.
     - [`gog calendar (cal) move (transfer) <calendarId> <eventId> <destinationCalendarId> [flags]`](commands/gog-calendar-move.md) - Move an event to another calendar
     - [`gog calendar (cal) out-of-office (ooo) --from=STRING --to=STRING [<calendarId>] [flags]`](commands/gog-calendar-out-of-office.md) - Create an Out of Office event
     - [`gog calendar (cal) propose-time <calendarId> <eventId> [flags]`](commands/gog-calendar-propose-time.md) - Generate URL to propose a new meeting time (browser-only feature)
+    - [`gog calendar (cal) raw <calendarId> <eventId> [flags]`](commands/gog-calendar-raw.md) - Dump raw Google Calendar API response as JSON (Events.Get; lossless; for scripting and LLM consumption)
     - [`gog calendar (cal) respond (rsvp,reply) <calendarId> <eventId> [flags]`](commands/gog-calendar-respond.md) - Respond to an event invitation
     - [`gog calendar (cal) search (find,query) <query> [flags]`](commands/gog-calendar-search.md) - Search events
     - [`gog calendar (cal) subscribe (sub,add-calendar) <calendarId> [flags]`](commands/gog-calendar-subscribe.md) - Add a calendar to your calendar list
@@ -200,6 +201,7 @@ Generated from `gog schema --json`.
       - [`gog contacts (contact) other delete <resourceName>`](commands/gog-contacts-other-delete.md) - Delete an other contact
       - [`gog contacts (contact) other list [flags]`](commands/gog-contacts-other-list.md) - List other contacts
       - [`gog contacts (contact) other search <query> ... [flags]`](commands/gog-contacts-other-search.md) - Search other contacts
+    - [`gog contacts (contact) raw <identifier> [flags]`](commands/gog-contacts-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
     - [`gog contacts (contact) search <query> ... [flags]`](commands/gog-contacts-search.md) - Search contacts by name/email/phone
     - [`gog contacts (contact) update (edit,set) <resourceName> [flags]`](commands/gog-contacts-update.md) - Update a contact
   - [`gog docs (doc) <command> [flags]`](commands/gog-docs.md) - Google Docs (export via Drive)
@@ -223,6 +225,7 @@ Generated from `gog schema --json`.
     - [`gog docs (doc) info (get,show) <docId>`](commands/gog-docs-info.md) - Get Google Doc metadata
     - [`gog docs (doc) insert <docId> [<content>] [flags]`](commands/gog-docs-insert.md) - Insert text at a specific position
     - [`gog docs (doc) list-tabs <docId>`](commands/gog-docs-list-tabs.md) - List all tabs in a Google Doc
+    - [`gog docs (doc) raw <docId> [flags]`](commands/gog-docs-raw.md) - Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)
     - [`gog docs (doc) rename-tab <docId> [flags]`](commands/gog-docs-rename-tab.md) - Rename a tab in a Google Doc
     - [`gog docs (doc) sed <docId> [<expression>] [flags]`](commands/gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
     - [`gog docs (doc) structure (struct) <docId> [flags]`](commands/gog-docs-structure.md) - Show document structure with numbered paragraphs
@@ -241,11 +244,12 @@ Generated from `gog schema --json`.
     - [`gog drive (drv) delete (rm,del) <fileId> [flags]`](commands/gog-drive-delete.md) - Move a file to trash (use --permanent to delete forever)
     - [`gog drive (drv) download <fileId> [flags]`](commands/gog-drive-download.md) - Download a file (exports Google Docs formats)
     - [`gog drive (drv) drives [flags]`](commands/gog-drive-drives.md) - List shared drives (Team Drives)
-    - [`gog drive (drv) get <fileId>`](commands/gog-drive-get.md) - Get file metadata
+    - [`gog drive (drv) get <fileId> [flags]`](commands/gog-drive-get.md) - Get file metadata
     - [`gog drive (drv) ls [flags]`](commands/gog-drive-ls.md) - List files in a folder (default: root)
     - [`gog drive (drv) mkdir <name> [flags]`](commands/gog-drive-mkdir.md) - Create a folder
     - [`gog drive (drv) move <fileId> [flags]`](commands/gog-drive-move.md) - Move a file to a different folder
     - [`gog drive (drv) permissions <fileId> [flags]`](commands/gog-drive-permissions.md) - List permissions on a file
+    - [`gog drive (drv) raw <fileId> [flags]`](commands/gog-drive-raw.md) - Dump raw Google Drive API response as JSON (Files.Get; lossless; for scripting and LLM consumption)
     - [`gog drive (drv) rename <fileId> <newName>`](commands/gog-drive-rename.md) - Rename a file or folder
     - [`gog drive (drv) search <query> ... [flags]`](commands/gog-drive-search.md) - Full-text search across Drive
     - [`gog drive (drv) share <fileId> [flags]`](commands/gog-drive-share.md) - Share a file or folder
@@ -259,6 +263,7 @@ Generated from `gog schema --json`.
     - [`gog forms (form) delete-question (delete-q,dq,rm-q) <formId> <index>`](commands/gog-forms-delete-question.md) - Delete a question by index
     - [`gog forms (form) get (info,show) <formId>`](commands/gog-forms-get.md) - Get a form
     - [`gog forms (form) move-question (move-q,mq) <formId> <oldIndex> <newIndex>`](commands/gog-forms-move-question.md) - Move a question to a new position
+    - [`gog forms (form) raw <formId> [flags]`](commands/gog-forms-raw.md) - Dump raw Google Forms API response as JSON (Forms.Get; lossless; for scripting and LLM consumption)
     - [`gog forms (form) responses <command>`](commands/gog-forms-responses.md) - Form responses
       - [`gog forms (form) responses get (info,show) <formId> <responseId>`](commands/gog-forms-responses-get.md) - Get a form response
       - [`gog forms (form) responses list (ls) <formId> [flags]`](commands/gog-forms-responses-list.md) - List form responses
@@ -297,6 +302,7 @@ Generated from `gog schema --json`.
     - [`gog gmail (mail,email) messages (message,msg,msgs) <command>`](commands/gog-gmail-messages.md) - Message operations
       - [`gog gmail (mail,email) messages (message,msg,msgs) modify (update,edit,set) <messageId> [flags]`](commands/gog-gmail-messages-modify.md) - Modify labels on a single message
       - [`gog gmail (mail,email) messages (message,msg,msgs) search (find,query,ls,list) <query> ... [flags]`](commands/gog-gmail-messages-search.md) - Search messages using Gmail query syntax
+    - [`gog gmail (mail,email) raw <messageId> [flags]`](commands/gog-gmail-raw.md) - Dump raw Gmail API response as JSON (Users.Messages.Get; lossless; for scripting and LLM consumption)
     - [`gog gmail (mail,email) search (find,query,ls,list) <query> ... [flags]`](commands/gog-gmail-search.md) - Search threads using Gmail query syntax
     - [`gog gmail (mail,email) send [flags]`](commands/gog-gmail-send.md) - Send an email
     - [`gog gmail (mail,email) settings <command>`](commands/gog-gmail-settings.md) - Settings and admin
@@ -366,6 +372,7 @@ Generated from `gog schema --json`.
   - [`gog people (person) <command> [flags]`](commands/gog-people.md) - Google People
     - [`gog people (person) get (info,show) <userId>`](commands/gog-people-get.md) - Get a user profile by ID
     - [`gog people (person) me`](commands/gog-people-me.md) - Show your profile (people/me)
+    - [`gog people (person) raw <userId> [flags]`](commands/gog-people-raw.md) - Dump raw People API response as JSON (People.Get; lossless; for scripting and LLM consumption)
     - [`gog people (person) relations [<userId>] [flags]`](commands/gog-people-relations.md) - Get user relations
     - [`gog people (person) search (find,query) <query> ... [flags]`](commands/gog-people-search.md) - Search the Workspace directory
   - [`gog schema (help-json,helpjson) [<command> ...] [flags]`](commands/gog-schema.md) - Machine-readable command/flag schema
@@ -401,6 +408,7 @@ Generated from `gog schema --json`.
       - [`gog sheets (sheet) named-ranges (namedranges,nr) update (edit,set) <spreadsheetId> <nameOrId> [flags]`](commands/gog-sheets-named-ranges-update.md) - Update a named range
     - [`gog sheets (sheet) notes <spreadsheetId> <range>`](commands/gog-sheets-notes.md) - Get cell notes from a range
     - [`gog sheets (sheet) number-format <spreadsheetId> <range> [flags]`](commands/gog-sheets-number-format.md) - Apply number format to a range
+    - [`gog sheets (sheet) raw <spreadsheetId> [flags]`](commands/gog-sheets-raw.md) - Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)
     - [`gog sheets (sheet) read-format (get-format,format-read) <spreadsheetId> <range> [flags]`](commands/gog-sheets-read-format.md) - Read cell formatting from a range
     - [`gog sheets (sheet) rename-tab (rename-sheet) <spreadsheetId> <oldName> <newName>`](commands/gog-sheets-rename-tab.md) - Rename a tab/sheet in a spreadsheet
     - [`gog sheets (sheet) resize-columns <spreadsheetId> <columns> [flags]`](commands/gog-sheets-resize-columns.md) - Resize sheet columns
@@ -419,6 +427,7 @@ Generated from `gog schema --json`.
     - [`gog slides (slide) info (get,show) <presentationId>`](commands/gog-slides-info.md) - Get Google Slides presentation metadata
     - [`gog slides (slide) insert-text <presentationId> <objectId> <text> [flags]`](commands/gog-slides-insert-text.md) - Insert text into an existing page element (shape or table) by objectId
     - [`gog slides (slide) list-slides <presentationId>`](commands/gog-slides-list-slides.md) - List all slides with their object IDs
+    - [`gog slides (slide) raw <presentationId> [flags]`](commands/gog-slides-raw.md) - Dump raw Google Slides API response as JSON (Presentations.Get; lossless; for scripting and LLM consumption)
     - [`gog slides (slide) read-slide <presentationId> <slideId>`](commands/gog-slides-read-slide.md) - Read slide content: speaker notes, text elements, and images
     - [`gog slides (slide) replace-slide <presentationId> <slideId> <image> [flags]`](commands/gog-slides-replace-slide.md) - Replace the image on an existing slide in-place
     - [`gog slides (slide) replace-text <presentationId> <find> <replacement> [flags]`](commands/gog-slides-replace-text.md) - Find-and-replace text across a presentation
@@ -435,6 +444,7 @@ Generated from `gog schema --json`.
     - [`gog tasks (task) lists <command>`](commands/gog-tasks-lists.md) - List task lists
       - [`gog tasks (task) lists create (add,new) <title> ...`](commands/gog-tasks-lists-create.md) - Create a task list
       - [`gog tasks (task) lists list [flags]`](commands/gog-tasks-lists-list.md) - List task lists
+    - [`gog tasks (task) raw <tasklistId> <taskId> [flags]`](commands/gog-tasks-raw.md) - Dump raw Google Tasks API response as JSON (Tasks.Get; lossless; for scripting and LLM consumption)
     - [`gog tasks (task) undo (uncomplete,undone) <tasklistId> <taskId>`](commands/gog-tasks-undo.md) - Mark task needs action
     - [`gog tasks (task) update (edit,set) <tasklistId> <taskId> [flags]`](commands/gog-tasks-update.md) - Update a task
   - [`gog time <command> [flags]`](commands/gog-time.md) - Local time utilities

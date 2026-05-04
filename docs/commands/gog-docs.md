@@ -30,6 +30,7 @@ gog docs (doc) <command> [flags]
 - [gog docs info](gog-docs-info.md) - Get Google Doc metadata
 - [gog docs insert](gog-docs-insert.md) - Insert text at a specific position
 - [gog docs list-tabs](gog-docs-list-tabs.md) - List all tabs in a Google Doc
+- [gog docs raw](gog-docs-raw.md) - Dump raw Google Docs API response as JSON (Documents.Get; lossless; for scripting and LLM consumption)
 - [gog docs rename-tab](gog-docs-rename-tab.md) - Rename a tab in a Google Doc
 - [gog docs sed](gog-docs-sed.md) - Regex find/replace (sed-style: s/pattern/replacement/g)
 - [gog docs structure](gog-docs-structure.md) - Show document structure with numbered paragraphs

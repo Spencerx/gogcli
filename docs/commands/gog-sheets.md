@@ -35,6 +35,7 @@ gog sheets (sheet) <command> [flags]
 - [gog sheets named-ranges](gog-sheets-named-ranges.md) - Manage named ranges
 - [gog sheets notes](gog-sheets-notes.md) - Get cell notes from a range
 - [gog sheets number-format](gog-sheets-number-format.md) - Apply number format to a range
+- [gog sheets raw](gog-sheets-raw.md) - Dump raw Google Sheets API response as JSON (Spreadsheets.Get; lossless; for scripting and LLM consumption)
 - [gog sheets read-format](gog-sheets-read-format.md) - Read cell formatting from a range
 - [gog sheets rename-tab](gog-sheets-rename-tab.md) - Rename a tab/sheet in a spreadsheet
 - [gog sheets resize-columns](gog-sheets-resize-columns.md) - Resize sheet columns

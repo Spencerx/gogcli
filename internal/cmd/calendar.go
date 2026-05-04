@@ -8,6 +8,7 @@ type CalendarCmd struct {
 	Alias           CalendarAliasCmd           `cmd:"" name:"alias" help:"Manage calendar aliases"`
 	Events          CalendarEventsCmd          `cmd:"" name:"events" aliases:"list,ls" help:"List events from a calendar or all calendars"`
 	Event           CalendarEventCmd           `cmd:"" name:"event" aliases:"get,info,show" help:"Get event"`
+	Raw             CalendarRawCmd             `cmd:"" name:"raw" help:"Dump raw Google Calendar API response as JSON (Events.Get; lossless; for scripting and LLM consumption)"`
 	Create          CalendarCreateCmd          `cmd:"" name:"create" aliases:"add,new" help:"Create an event"`
 	Update          CalendarUpdateCmd          `cmd:"" name:"update" aliases:"edit,set" help:"Update an event"`
 	Move            CalendarMoveCmd            `cmd:"" name:"move" aliases:"transfer" help:"Move an event to another calendar"`

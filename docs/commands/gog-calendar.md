@@ -31,6 +31,7 @@ gog calendar (cal) <command> [flags]
 - [gog calendar move](gog-calendar-move.md) - Move an event to another calendar
 - [gog calendar out-of-office](gog-calendar-out-of-office.md) - Create an Out of Office event
 - [gog calendar propose-time](gog-calendar-propose-time.md) - Generate URL to propose a new meeting time (browser-only feature)
+- [gog calendar raw](gog-calendar-raw.md) - Dump raw Google Calendar API response as JSON (Events.Get; lossless; for scripting and LLM consumption)
 - [gog calendar respond](gog-calendar-respond.md) - Respond to an event invitation
 - [gog calendar search](gog-calendar-search.md) - Search events
 - [gog calendar subscribe](gog-calendar-subscribe.md) - Add a calendar to your calendar list

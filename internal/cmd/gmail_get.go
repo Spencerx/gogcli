@@ -21,6 +21,7 @@ type GmailGetCmd struct {
 const (
 	gmailFormatFull     = "full"
 	gmailFormatMetadata = "metadata"
+	gmailFormatMinimal  = "minimal"
 	gmailFormatRaw      = "raw"
 )
 

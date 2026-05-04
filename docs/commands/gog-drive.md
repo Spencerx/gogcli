@@ -26,6 +26,7 @@ gog drive (drv) <command> [flags]
 - [gog drive mkdir](gog-drive-mkdir.md) - Create a folder
 - [gog drive move](gog-drive-move.md) - Move a file to a different folder
 - [gog drive permissions](gog-drive-permissions.md) - List permissions on a file
+- [gog drive raw](gog-drive-raw.md) - Dump raw Google Drive API response as JSON (Files.Get; lossless; for scripting and LLM consumption)
 - [gog drive rename](gog-drive-rename.md) - Rename a file or folder
 - [gog drive search](gog-drive-search.md) - Full-text search across Drive
 - [gog drive share](gog-drive-share.md) - Share a file or folder
