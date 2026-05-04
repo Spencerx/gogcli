@@ -69,10 +69,7 @@ func helpPrinter(options kong.HelpOptions, ctx *kong.Context) error {
 }
 
 func injectBuildLine(out string) string {
-	v := strings.TrimSpace(version)
-	if v == "" {
-		v = "dev"
-	}
+	v := resolvedVersion()
 	c := strings.TrimSpace(commit)
 	line := fmt.Sprintf("Build: %s", v)
 	if c != "" {
