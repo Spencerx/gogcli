@@ -221,6 +221,7 @@ type CalendarUpdateCmd struct {
 	GuestsCanInviteOthers *bool    `name:"guests-can-invite" help:"Allow guests to invite others"`
 	GuestsCanModify       *bool    `name:"guests-can-modify" help:"Allow guests to modify event"`
 	GuestsCanSeeOthers    *bool    `name:"guests-can-see-others" help:"Allow guests to see other guests"`
+	WithMeet              bool     `name:"with-meet" help:"Create a Google Meet video conference for this event"`
 	Scope                 string   `name:"scope" help:"For recurring events: single, future, all" default:"all"`
 	OriginalStartTime     string   `name:"original-start" help:"Original start time of instance (required for scope=single,future)"`
 	PrivateProps          []string `name:"private-prop" help:"Private extended property (key=value, can be repeated)"`
@@ -296,6 +297,7 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 		"add_attendee":         strings.TrimSpace(c.AddAttendee),
 		"patch":                patch,
 		"wants_add_attendee":   wantsAddAttendee,
+		"conference_version_1": patch.ConferenceData != nil,
 		"supports_attachments": len(patch.Attachments) > 0,
 	}); dryRunErr != nil {
 		return dryRunErr
@@ -390,6 +392,10 @@ func (c *CalendarUpdateCmd) buildUpdatePatch(kctx *kong.Context) (*calendar.Even
 	}
 
 	if c.applyGuestOptions(kctx, patch) {
+		changed = true
+	}
+
+	if c.applyConferenceData(kctx, patch) {
 		changed = true
 	}
 
@@ -648,6 +654,14 @@ func (c *CalendarUpdateCmd) applyGuestOptions(kctx *kong.Context, patch *calenda
 		changed = true
 	}
 	return changed
+}
+
+func (c *CalendarUpdateCmd) applyConferenceData(kctx *kong.Context, patch *calendar.Event) bool {
+	if !flagProvided(kctx, "with-meet") {
+		return false
+	}
+	patch.ConferenceData = buildConferenceData(true)
+	return true
 }
 
 func (c *CalendarUpdateCmd) applyExtendedProperties(kctx *kong.Context, patch *calendar.Event) bool {

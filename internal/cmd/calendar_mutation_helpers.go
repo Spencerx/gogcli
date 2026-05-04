@@ -57,6 +57,9 @@ func (m *calendarMutationContext) patchEvent(ctx context.Context, eventID string
 	if sendUpdates != "" {
 		call = call.SendUpdates(sendUpdates)
 	}
+	if patch.ConferenceData != nil {
+		call = call.ConferenceDataVersion(1)
+	}
 	return call.Do()
 }
 

@@ -4,6 +4,7 @@
 
 ### Added
 - Agent safety: add baked safety-profile builds for fail-closed agent binaries, with `agent-safe`, `readonly`, and `full` profiles, filtered help/schema output, docs, and build tooling. (#366, #239) — thanks @drewburchfield.
+- Calendar: add `--with-meet` to `calendar update` for adding Google Meet conferencing to existing events. (#538) — thanks @alexisperumal.
 - Docs: add `docs add-tab`, `docs rename-tab`, and `docs delete-tab` for managing Google Docs tabs. (#547) — thanks @chopenhauer.
 - Docs: support tab-scoped Markdown append and find-replace flows. (#541) — thanks @donbowman.
 
