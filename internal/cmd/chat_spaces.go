@@ -52,20 +52,9 @@ func (c *ChatSpacesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return resp.Spaces, resp.NextPageToken, nil
 	}
 
-	var spaces []*chat.Space
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		spaces = all
-	} else {
-		var err error
-		spaces, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	spaces, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

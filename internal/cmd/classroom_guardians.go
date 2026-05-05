@@ -58,20 +58,9 @@ func (c *ClassroomGuardiansListCmd) Run(ctx context.Context, flags *RootFlags) e
 		return resp.Guardians, resp.NextPageToken, nil
 	}
 
-	var guardians []*classroom.Guardian
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		guardians = all
-	} else {
-		var err error
-		guardians, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	guardians, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -245,20 +234,9 @@ func (c *ClassroomGuardianInvitesListCmd) Run(ctx context.Context, flags *RootFl
 		return resp.GuardianInvitations, resp.NextPageToken, nil
 	}
 
-	var invitations []*classroom.GuardianInvitation
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		invitations = all
-	} else {
-		var err error
-		invitations, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	invitations, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

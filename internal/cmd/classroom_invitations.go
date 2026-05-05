@@ -60,20 +60,9 @@ func (c *ClassroomInvitationsListCmd) Run(ctx context.Context, flags *RootFlags)
 		return resp.Invitations, resp.NextPageToken, nil
 	}
 
-	var invitations []*classroom.Invitation
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		invitations = all
-	} else {
-		var err error
-		invitations, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	invitations, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

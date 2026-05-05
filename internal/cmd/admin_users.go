@@ -60,19 +60,9 @@ func (c *AdminUsersListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return resp.Users, resp.NextPageToken, nil
 	}
 
-	var users []*admin.User
-	nextPageToken := ""
-	if c.All {
-		all, collectErr := collectAllPages(c.Page, fetch)
-		if collectErr != nil {
-			return collectErr
-		}
-		users = all
-	} else {
-		users, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	users, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

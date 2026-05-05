@@ -127,20 +127,9 @@ func (c *ChatMessagesReactionsListCmd) Run(ctx context.Context, flags *RootFlags
 		return resp.Reactions, resp.NextPageToken, nil
 	}
 
-	var reactions []*chat.Reaction
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		reactions = all
-	} else {
-		var err error
-		reactions, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	reactions, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

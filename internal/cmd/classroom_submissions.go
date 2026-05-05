@@ -86,20 +86,9 @@ func (c *ClassroomSubmissionsListCmd) Run(ctx context.Context, flags *RootFlags)
 		return resp.StudentSubmissions, resp.NextPageToken, nil
 	}
 
-	var submissions []*classroom.StudentSubmission
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		submissions = all
-	} else {
-		var err error
-		submissions, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	submissions, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

@@ -51,20 +51,9 @@ func (c *GmailHistoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 		historyIDs := collectHistoryMessageIDs(resp)
 		return historyIDs.FetchIDs, resp.NextPageToken, nil
 	}
-	var ids []string
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		ids = all
-	} else {
-		var err error
-		ids, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	ids, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 	if outfmt.IsJSON(ctx) {
 		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{

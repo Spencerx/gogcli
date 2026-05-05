@@ -51,20 +51,9 @@ func listCalendarEvents(ctx context.Context, svc *calendar.Service, calendarID, 
 		return resp.Items, resp.NextPageToken, nil
 	}
 
-	var items []*calendar.Event
-	nextPageToken := ""
-	if allPages {
-		all, err := collectAllPages(page, fetch)
-		if err != nil {
-			return err
-		}
-		items = all
-	} else {
-		var err error
-		items, nextPageToken, err = fetch(page)
-		if err != nil {
-			return err
-		}
+	items, nextPageToken, err := loadPagedItems(page, allPages, fetch)
+	if err != nil {
+		return err
 	}
 	if outfmt.IsJSON(ctx) {
 		if err := outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
@@ -164,21 +153,10 @@ func listCalendarIDsEvents(ctx context.Context, svc *calendar.Service, calendarI
 			return resp.Items, resp.NextPageToken, nil
 		}
 
-		var events []*calendar.Event
-		var err error
-		if allPages {
-			allEvents, collectErr := collectAllPages(page, fetch)
-			if collectErr != nil {
-				u.Err().Printf("calendar %s: %v", calID, collectErr)
-				continue
-			}
-			events = allEvents
-		} else {
-			events, _, err = fetch(page)
-			if err != nil {
-				u.Err().Printf("calendar %s: %v", calID, err)
-				continue
-			}
+		events, _, err := loadPagedItems(page, allPages, fetch)
+		if err != nil {
+			u.Err().Printf("calendar %s: %v", calID, err)
+			continue
 		}
 
 		for _, e := range events {

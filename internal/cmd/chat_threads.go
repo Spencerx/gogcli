@@ -59,20 +59,9 @@ func (c *ChatThreadsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return resp.Messages, resp.NextPageToken, nil
 	}
 
-	var messages []*chat.Message
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		messages = all
-	} else {
-		var err error
-		messages, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	messages, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	threads := make([]*chatMessageThreadItem, 0, len(messages))

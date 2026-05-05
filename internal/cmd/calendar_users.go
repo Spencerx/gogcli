@@ -61,20 +61,9 @@ func (c *CalendarUsersCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return resp.People, resp.NextPageToken, nil
 	}
 
-	var peopleList []*people.Person
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		peopleList = all
-	} else {
-		var err error
-		peopleList, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	peopleList, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {

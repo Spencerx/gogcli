@@ -67,20 +67,9 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return resp.Memberships, resp.NextPageToken, nil
 	}
 
-	var memberships []*cloudidentity.GroupRelation
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		memberships = all
-	} else {
-		var err error
-		memberships, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	memberships, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -219,20 +208,9 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return resp.Memberships, resp.NextPageToken, nil
 	}
 
-	var memberships []*cloudidentity.Membership
-	nextPageToken := ""
-	if c.All {
-		all, err := collectAllPages(c.Page, fetch)
-		if err != nil {
-			return err
-		}
-		memberships = all
-	} else {
-		var err error
-		memberships, nextPageToken, err = fetch(c.Page)
-		if err != nil {
-			return err
-		}
+	memberships, nextPageToken, err := loadPagedItems(c.Page, c.All, fetch)
+	if err != nil {
+		return err
 	}
 
 	if outfmt.IsJSON(ctx) {
