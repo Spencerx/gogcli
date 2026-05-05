@@ -41,6 +41,50 @@ func optionsForAccount(ctx context.Context, service googleauth.Service, email st
 	return optionsForAccountScopes(ctx, string(service), email, scopes)
 }
 
+type googleServiceFactory[T any] func(context.Context, ...option.ClientOption) (*T, error)
+
+func newGoogleServiceForAccount[T any](
+	ctx context.Context,
+	email string,
+	service googleauth.Service,
+	label string,
+	factory googleServiceFactory[T],
+) (*T, error) {
+	opts, err := optionsForAccount(ctx, service, email)
+	if err != nil {
+		return nil, fmt.Errorf("%s options: %w", label, err)
+	}
+	return newGoogleService(ctx, label, opts, factory)
+}
+
+func newGoogleServiceForScopes[T any](
+	ctx context.Context,
+	email string,
+	serviceLabel string,
+	errorLabel string,
+	scopes []string,
+	factory googleServiceFactory[T],
+) (*T, error) {
+	opts, err := optionsForAccountScopes(ctx, serviceLabel, email, scopes)
+	if err != nil {
+		return nil, fmt.Errorf("%s options: %w", errorLabel, err)
+	}
+	return newGoogleService(ctx, errorLabel, opts, factory)
+}
+
+func newGoogleService[T any](
+	ctx context.Context,
+	label string,
+	opts []option.ClientOption,
+	factory googleServiceFactory[T],
+) (*T, error) {
+	svc, err := factory(ctx, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("create %s service: %w", label, err)
+	}
+	return svc, nil
+}
+
 // IsADCMode reports whether Application Default Credentials mode is active.
 // When GOG_AUTH_MODE=adc, the CLI authenticates using the ambient credentials
 // (e.g. GKE Workload Identity, GOOGLE_APPLICATION_CREDENTIALS, or gcloud ADC)
