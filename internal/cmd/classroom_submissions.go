@@ -79,9 +79,9 @@ func (c *ClassroomSubmissionsListCmd) Run(ctx context.Context, flags *RootFlags)
 			}
 		}
 
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.StudentSubmissions, resp.NextPageToken, nil
 	}

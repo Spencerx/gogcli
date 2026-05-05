@@ -48,9 +48,9 @@ func (c *ClassroomStudentsListCmd) Run(ctx context.Context, flags *RootFlags) er
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.Students, resp.NextPageToken, nil
 	}
@@ -269,9 +269,9 @@ func (c *ClassroomTeachersListCmd) Run(ctx context.Context, flags *RootFlags) er
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.Teachers, resp.NextPageToken, nil
 	}
@@ -455,7 +455,7 @@ type ClassroomRosterCmd struct {
 	FailEmpty bool   `name:"fail-empty" aliases:"non-empty,require-results" help:"Exit with code 3 if no results"`
 }
 
-//nolint:gocyclo,cyclop // command orchestration across two role paths
+//nolint:cyclop // command orchestration across two role paths
 func (c *ClassroomRosterCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)

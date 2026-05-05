@@ -43,9 +43,9 @@ func (c *GmailHistoryCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Context(ctx).Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Context(ctx).Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		historyID = formatHistoryID(resp.HistoryId)
 		historyIDs := collectHistoryMessageIDs(resp)

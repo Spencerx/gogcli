@@ -60,9 +60,9 @@ func (c *GroupsListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapCloudIdentityError(err, account)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapCloudIdentityError(callErr, account)
 		}
 		return resp.Memberships, resp.NextPageToken, nil
 	}
@@ -201,9 +201,9 @@ func (c *GroupsMembersCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to list members: %w", err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", fmt.Errorf("failed to list members: %w", callErr)
 		}
 		return resp.Memberships, resp.NextPageToken, nil
 	}

@@ -102,9 +102,9 @@ func (c *PeopleSearchCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapPeopleAPIError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapPeopleAPIError(callErr)
 		}
 		return resp.People, resp.NextPageToken, nil
 	}

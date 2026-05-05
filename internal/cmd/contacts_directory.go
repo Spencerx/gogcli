@@ -55,9 +55,9 @@ func (c *ContactsDirectoryListCmd) Run(ctx context.Context, flags *RootFlags) er
 			call = call.PageToken(pageToken)
 		}
 
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.People, resp.NextPageToken, nil
 	}
@@ -151,9 +151,9 @@ func (c *ContactsDirectorySearchCmd) Run(ctx context.Context, flags *RootFlags) 
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.People, resp.NextPageToken, nil
 	}
@@ -246,9 +246,9 @@ func (c *ContactsOtherListCmd) Run(ctx context.Context, flags *RootFlags) error 
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.OtherContacts, resp.NextPageToken, nil
 	}

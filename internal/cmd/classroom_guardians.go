@@ -51,9 +51,9 @@ func (c *ClassroomGuardiansListCmd) Run(ctx context.Context, flags *RootFlags) e
 		if v := strings.TrimSpace(c.Email); v != "" {
 			call.InvitedEmailAddress(v)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.Guardians, resp.NextPageToken, nil
 	}
@@ -227,9 +227,9 @@ func (c *ClassroomGuardianInvitesListCmd) Run(ctx context.Context, flags *RootFl
 			}
 			call.States(upper...)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.GuardianInvitations, resp.NextPageToken, nil
 	}

@@ -82,9 +82,9 @@ func (c *TasksListCmd) Run(ctx context.Context, flags *RootFlags) error {
 			call = call.UpdatedMin(strings.TrimSpace(c.UpdatedMin))
 		}
 
-		resp, err := call.Context(ctx).Do()
-		if err != nil {
-			return nil, "", err
+		resp, callErr := call.Context(ctx).Do()
+		if callErr != nil {
+			return nil, "", callErr
 		}
 		return resp.Items, resp.NextPageToken, nil
 	}

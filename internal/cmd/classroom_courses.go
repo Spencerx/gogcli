@@ -65,9 +65,9 @@ func (c *ClassroomCoursesListCmd) Run(ctx context.Context, flags *RootFlags) err
 		if v := strings.TrimSpace(c.StudentID); v != "" {
 			call.StudentId(v)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			return nil, "", wrapClassroomError(err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			return nil, "", wrapClassroomError(callErr)
 		}
 		return resp.Courses, resp.NextPageToken, nil
 	}

@@ -43,5 +43,6 @@ func stubGoogleTestService[T any](t *testing.T, target *func(context.Context, st
 
 	orig := *target
 	t.Cleanup(func() { *target = orig })
+	//nolint:unparam // test stub must match production service constructor signature.
 	*target = func(context.Context, string) (*T, error) { return svc, nil }
 }

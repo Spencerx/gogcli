@@ -50,13 +50,13 @@ func (c *CalendarUsersCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if strings.TrimSpace(pageToken) != "" {
 			call = call.PageToken(pageToken)
 		}
-		resp, err := call.Do()
-		if err != nil {
-			if strings.Contains(err.Error(), "accessNotConfigured") ||
-				strings.Contains(err.Error(), "People API has not been used") {
-				return nil, "", fmt.Errorf("people API is not enabled; enable it at: https://console.developers.google.com/apis/api/people.googleapis.com/overview (%w)", err)
+		resp, callErr := call.Do()
+		if callErr != nil {
+			if strings.Contains(callErr.Error(), "accessNotConfigured") ||
+				strings.Contains(callErr.Error(), "People API has not been used") {
+				return nil, "", fmt.Errorf("people API is not enabled; enable it at: https://console.developers.google.com/apis/api/people.googleapis.com/overview (%w)", callErr)
 			}
-			return nil, "", err
+			return nil, "", callErr
 		}
 		return resp.People, resp.NextPageToken, nil
 	}
