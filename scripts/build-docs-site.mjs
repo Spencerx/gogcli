@@ -8,10 +8,10 @@ const outDir = path.join(root, "dist", "docs-site");
 const repoEditBase = "https://github.com/steipete/gogcli/edit/main/docs";
 
 const sections = [
-  ["Start", ["README.md", "auth-clients.md", "spec.md", "dates.md"]],
+  ["Start", ["README.md", "install.md", "auth-clients.md", "spec.md", "dates.md"]],
   ["Commands", rels("commands")],
-  ["Gmail", ["gmail-autoreply.md", "watch.md", "email-tracking.md", "email-tracking-worker.md"]],
-  ["Workspace", ["backup.md", "sheets-tables.md", "contacts-json-update.md", "slides-markdown.md", "slides-template-replacement.md", "sedmat.md"]],
+  ["Gmail", ["gmail-workflows.md", "gmail-autoreply.md", "watch.md", "email-tracking.md", "email-tracking-worker.md"]],
+  ["Workspace", ["raw-api.md", "raw-audit.md", "drive-audits.md", "contacts-dedupe.md", "contacts-json-update.md", "docs-editing.md", "sheets-tables.md", "sheets-formatting.md", "slides-markdown.md", "slides-template-replacement.md", "backup.md", "sedmat.md"]],
   ["Safety", ["safety-profiles.md", "RELEASING.md"]],
 ];
 

@@ -8,6 +8,8 @@ Keep, and related agent workflows.
 
 - Install and authenticate from the repository
   [README](https://github.com/steipete/gogcli#readme).
+- Read [Install and Runtime Packages](install.md) when installing from
+  Homebrew, Docker, GitHub releases, Windows ZIPs, or source.
 - Read [Auth Clients](auth-clients.md) when setting up OAuth clients, service
   accounts, or Workspace domain-wide delegation.
 - Read [Command Guards and Baked Safety Profiles](safety-profiles.md) when
@@ -19,6 +21,27 @@ Keep, and related agent workflows.
   Sheets structured tables.
 - Open the [Command Index](commands/README.md) for generated docs for every CLI
   command.
+
+## Feature Pages
+
+- [Install and Runtime Packages](install.md)
+- [Auth Clients](auth-clients.md)
+- [Command Guards and Baked Safety Profiles](safety-profiles.md)
+- [Raw API Dumps](raw-api.md)
+- [Raw API Sensitive Field Audit](raw-audit.md)
+- [Gmail Workflows](gmail-workflows.md)
+- [Gmail watch](watch.md)
+- [Email Tracking](email-tracking.md)
+- [Drive Audits](drive-audits.md)
+- [Contacts Dedupe Preview](contacts-dedupe.md)
+- [Contacts JSON Update](contacts-json-update.md)
+- [Google Docs Editing](docs-editing.md)
+- [Sheets Tables](sheets-tables.md)
+- [Sheets Formatting](sheets-formatting.md)
+- [Slides from Markdown](slides-markdown.md)
+- [Slides Template Replacement](slides-template-replacement.md)
+- [Backups](backup.md)
+- [Date and Time Input Formats](dates.md)
 
 ## Common Paths
 
@@ -39,6 +62,9 @@ commands, flags, aliases, arguments, or help text, run:
 ```bash
 make docs-commands
 ```
+
+`make docs-check` verifies that every schema command has a generated page and
+that required feature pages are present and linked from this overview.
 
 Then build the GitHub Pages site locally:
 

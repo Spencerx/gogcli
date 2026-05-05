@@ -74,6 +74,7 @@ docs-site: docs-commands
 	@node scripts/build-docs-site.mjs
 
 docs-check: docs-site
+	@node scripts/check-docs-coverage.mjs
 
 tools:
 	@mkdir -p $(TOOLS_DIR)
