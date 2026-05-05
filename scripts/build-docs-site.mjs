@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { css, faviconSvg, js } from "./docs-site-assets.mjs";
+import { css, faviconSvg, js, preThemeScript, themeToggleHtml } from "./docs-site-assets.mjs";
 
 const root = process.cwd();
 const docsDir = path.join(root, "docs");
@@ -78,6 +78,8 @@ for (const page of pages) {
 }
 
 fs.writeFileSync(path.join(outDir, "favicon.svg"), faviconSvg(), "utf8");
+copyStaticAsset("social-card.svg");
+copyStaticAsset("social-card.png");
 fs.writeFileSync(path.join(outDir, ".nojekyll"), "", "utf8");
 if (cname) fs.writeFileSync(path.join(outDir, "CNAME"), cname, "utf8");
 validateLinks(outDir);
@@ -88,6 +90,11 @@ function readCname() {
     if (fs.existsSync(candidate)) return fs.readFileSync(candidate, "utf8").trim();
   }
   return "";
+}
+
+function copyStaticAsset(name) {
+  const source = path.join(docsDir, name);
+  if (fs.existsSync(source)) fs.copyFileSync(source, path.join(outDir, name));
 }
 
 function parseFrontmatter(raw) {
@@ -410,6 +417,7 @@ function layout({ page, html, toc, prev, next, sectionName }) {
   const titleSuffix = home ? `${productName} — ${productTagline}` : `${page.title} — ${productName}`;
   const description = page.frontmatter.description || (home ? productDescription : `${page.title} — ${productName} CLI documentation.`);
   const canonicalUrl = pageCanonicalUrl(page);
+  const socialImage = siteBase ? `${siteBase}/social-card.png` : `${rootPrefix}social-card.png`;
   const socialMeta = [
     ["link", "rel", "canonical", "href", canonicalUrl],
     ["meta", "property", "og:type", "content", "website"],
@@ -417,9 +425,13 @@ function layout({ page, html, toc, prev, next, sectionName }) {
     ["meta", "property", "og:title", "content", titleSuffix],
     ["meta", "property", "og:description", "content", description],
     ["meta", "property", "og:url", "content", canonicalUrl],
+    ["meta", "property", "og:image", "content", socialImage],
+    ["meta", "property", "og:image:width", "content", "1200"],
+    ["meta", "property", "og:image:height", "content", "630"],
     ["meta", "name", "twitter:card", "content", "summary_large_image"],
     ["meta", "name", "twitter:title", "content", titleSuffix],
     ["meta", "name", "twitter:description", "content", description],
+    ["meta", "name", "twitter:image", "content", socialImage],
   ].map(tagHtml).join("\n  ");
   return `<!doctype html>
 <html lang="en">
@@ -433,6 +445,7 @@ function layout({ page, html, toc, prev, next, sectionName }) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>${preThemeScript()}</script>
   <style>${css()}</style>
 </head>
 <body${home ? ' class="home"' : ""}>
@@ -441,10 +454,13 @@ function layout({ page, html, toc, prev, next, sectionName }) {
   </button>
   <div class="shell">
     <aside class="sidebar">
-      <a class="brand" href="${hrefToOutRel("index.html", page.outRel)}" aria-label="${productName} docs home">
-        <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-        <span><strong>${escapeHtml(productName)}</strong><small>Google CLI docs</small></span>
-      </a>
+      <div class="sidebar-head">
+        <a class="brand" href="${hrefToOutRel("index.html", page.outRel)}" aria-label="${productName} docs home">
+          <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span><strong>${escapeHtml(productName)}</strong><small>Google CLI docs</small></span>
+        </a>
+        ${themeToggleHtml()}
+      </div>
       <label class="search"><span>Search</span><input id="doc-search" type="search" placeholder="gmail, calendar, sheets"></label>
       <nav>${navHtml(page)}</nav>
     </aside>
