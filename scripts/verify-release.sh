@@ -44,13 +44,13 @@ if [[ "$assets_count" -eq 0 ]]; then
   exit 2
 fi
 
-release_run_id="$(gh run list -L 20 --workflow release.yml --json databaseId,conclusion,headBranch -q ".[] | select(.headBranch==\"v$version\") | select(.conclusion==\"success\") | .databaseId" | head -n1)"
+release_run_id="$(gh api repos/steipete/gogcli/actions/runs --jq ".workflow_runs[] | select(.name==\"release\") | select(.head_branch==\"v$version\") | select(.conclusion==\"success\") | .id" | head -n1)"
 if [[ -z "$release_run_id" ]]; then
   echo "release workflow not green for v$version" >&2
   exit 2
 fi
 
-ci_ok="$(gh run list -L 1 --workflow ci --branch main --json conclusion -q '.[0].conclusion')"
+ci_ok="$(gh api repos/steipete/gogcli/actions/runs --jq '.workflow_runs[] | select(.name=="ci") | select(.head_branch=="main") | .conclusion // ""' | head -n1)"
 if [[ "$ci_ok" != "success" ]]; then
   echo "CI not green for main" >&2
   exit 2
