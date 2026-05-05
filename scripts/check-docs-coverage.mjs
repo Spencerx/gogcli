@@ -10,6 +10,7 @@ const commandsDir = path.join(docsDir, "commands");
 
 const requiredFeatureDocs = [
   "install.md",
+  "quickstart.md",
   "auth-clients.md",
   "safety-profiles.md",
   "raw-api.md",
@@ -50,7 +51,8 @@ for (const command of commands) {
   }
 }
 
-const docsReadme = fs.readFileSync(path.join(docsDir, "README.md"), "utf8");
+const navSourcePath = path.join(root, "scripts", "build-docs-site.mjs");
+const navSource = fs.readFileSync(navSourcePath, "utf8");
 const missingFeaturePages = [];
 const unlinkedFeaturePages = [];
 const brokenLinks = checkMarkdownLinks(docsDir);
@@ -61,7 +63,7 @@ for (const rel of requiredFeatureDocs) {
     missingFeaturePages.push(`docs/${rel}`);
     continue;
   }
-  if (!docsReadme.includes(`(${rel})`)) {
+  if (!navSource.includes(`"${rel}"`)) {
     unlinkedFeaturePages.push(`docs/${rel}`);
   }
 }
@@ -69,7 +71,7 @@ for (const rel of requiredFeatureDocs) {
 if (missingCommandPages.length || missingFeaturePages.length || unlinkedFeaturePages.length || brokenLinks.length) {
   for (const name of missingCommandPages) console.error(`missing command doc: ${name}`);
   for (const name of missingFeaturePages) console.error(`missing feature doc: ${name}`);
-  for (const name of unlinkedFeaturePages) console.error(`feature doc not linked from docs/README.md: ${name}`);
+  for (const name of unlinkedFeaturePages) console.error(`feature doc not in scripts/build-docs-site.mjs sidebar: ${name}`);
   for (const item of brokenLinks) console.error(`broken docs link: ${item}`);
   process.exit(1);
 }

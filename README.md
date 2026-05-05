@@ -340,7 +340,8 @@ go run scripts/gen-auth-services-md.go
 
 ## Documentation
 
-- [docs/README.md](docs/README.md): docs overview
+- [docs/index.md](docs/index.md): docs overview (rendered at <https://gogcli.sh/>)
+- [docs/quickstart.md](docs/quickstart.md): five-minute setup walkthrough
 - [docs/commands/README.md](docs/commands/README.md): generated command index
 - [docs/safety-profiles.md](docs/safety-profiles.md): command guards and baked safe binaries
 - [docs/auth-clients.md](docs/auth-clients.md): OAuth clients, account mapping, and service accounts

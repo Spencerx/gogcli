@@ -8,6 +8,7 @@ on:
       - "docs/**"
       - "scripts/gen-command-reference.sh"
       - "scripts/build-docs-site.mjs"
+      - "scripts/docs-site-assets.mjs"
       - "Makefile"
       - ".github/workflows/pages.yml"
   workflow_dispatch:

@@ -2,72 +2,125 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { css, faviconSvg, js } from "./docs-site-assets.mjs";
+
 const root = process.cwd();
 const docsDir = path.join(root, "docs");
 const outDir = path.join(root, "dist", "docs-site");
-const repoEditBase = "https://github.com/steipete/gogcli/edit/main/docs";
+const repoBase = "https://github.com/steipete/gogcli";
+const repoEditBase = `${repoBase}/edit/main/docs`;
+const cname = readCname();
+const siteBase = cname ? `https://${cname}` : "";
+
+const productName = "gog";
+const productTagline = "Google Workspace in your terminal";
+const productDescription =
+  "A single Go CLI for Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Apps Script, Contacts, Tasks, and Workspace admin — built for terminals, scripts, CI, and coding agents.";
+const brewInstall = "brew install gogcli";
 
 const sections = [
-  ["Start", ["README.md", "install.md", "auth-clients.md", "spec.md", "dates.md"]],
-  ["Commands", rels("commands")],
+  ["Start", ["index.md", "install.md", "quickstart.md", "auth-clients.md", "safety-profiles.md"]],
   ["Gmail", ["gmail-workflows.md", "gmail-autoreply.md", "watch.md", "email-tracking.md", "email-tracking-worker.md"]],
-  ["Workspace", ["raw-api.md", "raw-audit.md", "drive-audits.md", "contacts-dedupe.md", "contacts-json-update.md", "docs-editing.md", "sheets-tables.md", "sheets-formatting.md", "slides-markdown.md", "slides-template-replacement.md", "backup.md", "sedmat.md"]],
-  ["Safety", ["safety-profiles.md", "RELEASING.md"]],
+  ["Drive & Files", ["drive-audits.md", "raw-api.md", "raw-audit.md"]],
+  ["Docs, Sheets, Slides", ["docs-editing.md", "sedmat.md", "sheets-tables.md", "sheets-formatting.md", "slides-markdown.md", "slides-template-replacement.md"]],
+  ["Contacts", ["contacts-dedupe.md", "contacts-json-update.md"]],
+  ["Backup", ["backup.md"]],
+  ["Reference", ["dates.md", "spec.md", "RELEASING.md", "commands/README.md"]],
 ];
+
+// Skip these from page generation (internal notes, generated subpages we don't want as their own
+// nav-less HTML files, etc.). Generated `commands/*.md` ARE built (deep-linkable) but only the
+// commands index appears in the sidebar.
+const buildExcludes = [/^refactor\//, /^commands\.generated\.md$/];
 
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
-const pages = allMarkdown(docsDir).map((file) => {
+const allPages = allMarkdown(docsDir).map((file) => {
   const rel = path.relative(docsDir, file).replaceAll(path.sep, "/");
-  const markdown = fs.readFileSync(file, "utf8");
-  const title = firstHeading(markdown) || titleize(path.basename(rel, ".md"));
-  return { file, rel, title, outRel: outPath(rel), markdown };
+  const raw = fs.readFileSync(file, "utf8");
+  const { frontmatter, body } = parseFrontmatter(raw);
+  const cleaned = stripStrayDirectives(body);
+  const title = frontmatter.title || firstHeading(cleaned) || titleize(path.basename(rel, ".md"));
+  return { file, rel, title, outRel: outPath(rel, frontmatter), markdown: cleaned, frontmatter };
 });
 
+const pages = allPages.filter((page) => !buildExcludes.some((re) => re.test(page.rel)));
 const pageMap = new Map(pages.map((page) => [page.rel, page]));
-const nav = sections
-  .map(([name, relList]) => ({
-    name,
-    pages: relList.map((rel) => pageMap.get(rel)).filter(Boolean),
-  }))
-  .filter((section) => section.pages.length > 0);
-const orderedPages = nav.flatMap((section) => section.pages);
-const sectionByRel = new Map();
-for (const section of nav) {
-  for (const page of section.pages) sectionByRel.set(page.rel, section.name);
+const permalinkMap = new Map();
+for (const page of pages) {
+  if (page.frontmatter.permalink) {
+    permalinkMap.set(normalizePermalink(page.frontmatter.permalink), page);
+  }
 }
+
+const nav = sections
+  .map(([name, rels]) => ({
+    name,
+    pages: rels.map((rel) => pageMap.get(rel)).filter(Boolean),
+  }))
+  .filter((section) => section.pages.length);
+
+const sectionByRel = new Map();
+for (const section of nav) for (const page of section.pages) sectionByRel.set(page.rel, section.name);
+const orderedPages = nav.flatMap((s) => s.pages);
 
 for (const page of pages) {
   const html = markdownToHtml(page.markdown, page.rel);
   const toc = tocFromHtml(html);
-  const idx = orderedPages.findIndex((candidate) => candidate.rel === page.rel);
+  const idx = orderedPages.findIndex((p) => p.rel === page.rel);
   const prev = idx > 0 ? orderedPages[idx - 1] : null;
   const next = idx >= 0 && idx < orderedPages.length - 1 ? orderedPages[idx + 1] : null;
+  const sectionName = sectionByRel.get(page.rel) || "Reference";
   const pageOut = path.join(outDir, page.outRel);
   fs.mkdirSync(path.dirname(pageOut), { recursive: true });
-  fs.writeFileSync(
-    pageOut,
-    layout({ page, html, toc, prev, next, sectionName: sectionByRel.get(page.rel) || "Docs" }),
-    "utf8",
-  );
+  fs.writeFileSync(pageOut, layout({ page, html, toc, prev, next, sectionName }), "utf8");
 }
 
-for (const name of ["CNAME"]) {
-  const src = path.join(docsDir, name);
-  if (fs.existsSync(src)) fs.copyFileSync(src, path.join(outDir, name));
-}
+fs.writeFileSync(path.join(outDir, "favicon.svg"), faviconSvg(), "utf8");
 fs.writeFileSync(path.join(outDir, ".nojekyll"), "", "utf8");
+if (cname) fs.writeFileSync(path.join(outDir, "CNAME"), cname, "utf8");
+validateLinks(outDir);
 console.log(`built docs site: ${path.relative(root, outDir)}`);
 
-function rels(dir) {
-  const full = path.join(docsDir, dir);
-  if (!fs.existsSync(full)) return [];
-  return fs
-    .readdirSync(full)
-    .filter((name) => name.endsWith(".md"))
-    .sort((a, b) => (a === "README.md" ? -1 : b === "README.md" ? 1 : a.localeCompare(b)))
-    .map((name) => `${dir}/${name}`);
+function readCname() {
+  for (const candidate of [path.join(docsDir, "CNAME"), path.join(root, "CNAME")]) {
+    if (fs.existsSync(candidate)) return fs.readFileSync(candidate, "utf8").trim();
+  }
+  return "";
+}
+
+function parseFrontmatter(raw) {
+  const match = raw.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!match) return { frontmatter: {}, body: raw };
+  const fm = {};
+  for (const line of match[1].split("\n")) {
+    const m = line.match(/^([A-Za-z0-9_-]+):\s*(.*?)\s*$/);
+    if (!m) continue;
+    let value = m[2];
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    fm[m[1]] = value;
+  }
+  return { frontmatter: fm, body: raw.slice(match[0].length) };
+}
+
+function stripStrayDirectives(body) {
+  return body
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .filter((line) => !/^\s*\{:\s*[^}]*\}\s*$/.test(line))
+    .map((line) => line.replace(/\s*\{:\s*[^}]*\}\s*$/, ""))
+    .join("\n");
+}
+
+function normalizePermalink(value) {
+  let v = value.trim();
+  if (!v) return "/";
+  if (!v.startsWith("/")) v = `/${v}`;
+  if (v.length > 1 && v.endsWith("/")) v = v.slice(0, -1);
+  return v;
 }
 
 function allMarkdown(dir) {
@@ -81,7 +134,13 @@ function allMarkdown(dir) {
     .sort();
 }
 
-function outPath(rel) {
+function outPath(rel, frontmatter = {}) {
+  if (frontmatter.permalink) {
+    const permalink = normalizePermalink(frontmatter.permalink);
+    if (permalink === "/") return "index.html";
+    return `${permalink.slice(1)}/index.html`;
+  }
+  if (rel === "index.md") return "index.html";
   if (rel === "README.md") return "index.html";
   if (rel.endsWith("/README.md")) return rel.replace(/README\.md$/, "index.html");
   return rel.replace(/\.md$/, ".html");
@@ -101,6 +160,7 @@ function markdownToHtml(markdown, currentRel) {
   let paragraph = [];
   let list = null;
   let fence = null;
+  let blockquote = [];
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
@@ -112,30 +172,33 @@ function markdownToHtml(markdown, currentRel) {
     html.push(`</${list}>`);
     list = null;
   };
+  const flushBlockquote = () => {
+    if (!blockquote.length) return;
+    const inner = markdownToHtml(blockquote.join("\n"), currentRel);
+    html.push(`<blockquote>${inner}</blockquote>`);
+    blockquote = [];
+  };
   const splitRow = (line) => {
-    const trimmed = line.replace(/^\s*\|/, "").replace(/\|\s*$/, "");
+    let trimmed = line.trim();
+    if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
+    if (trimmed.endsWith("|") && !trimmed.endsWith("\\|")) trimmed = trimmed.slice(0, -1);
     const cells = [];
-    let cell = "";
-    let escaped = false;
-    for (const ch of trimmed) {
-      if (escaped) {
-        cell += ch;
-        escaped = false;
+    let current = "";
+    for (let idx = 0; idx < trimmed.length; idx++) {
+      const char = trimmed[idx];
+      if (char === "\\" && trimmed[idx + 1] === "|") {
+        current += "\\|";
+        idx += 1;
         continue;
       }
-      if (ch === "\\") {
-        escaped = true;
-        cell += ch;
+      if (char === "|") {
+        cells.push(current.trim().replace(/\\\|/g, "|"));
+        current = "";
         continue;
       }
-      if (ch === "|") {
-        cells.push(cell.trim());
-        cell = "";
-        continue;
-      }
-      cell += ch;
+      current += char;
     }
-    cells.push(cell.trim());
+    cells.push(current.trim().replace(/\\\|/g, "|"));
     return cells;
   };
   const isDivider = (line) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(line);
@@ -146,6 +209,7 @@ function markdownToHtml(markdown, currentRel) {
     if (fenceMatch) {
       flushParagraph();
       closeList();
+      flushBlockquote();
       if (fence) {
         html.push(`<pre><code class="language-${escapeAttr(fence.lang)}">${escapeHtml(fence.lines.join("\n"))}</code></pre>`);
         fence = null;
@@ -158,9 +222,22 @@ function markdownToHtml(markdown, currentRel) {
       fence.lines.push(line);
       continue;
     }
+    if (/^>\s?/.test(line)) {
+      flushParagraph();
+      closeList();
+      blockquote.push(line.replace(/^>\s?/, ""));
+      continue;
+    }
+    flushBlockquote();
     if (!line.trim()) {
       flushParagraph();
       closeList();
+      continue;
+    }
+    if (/^\s*---+\s*$/.test(line)) {
+      flushParagraph();
+      closeList();
+      html.push("<hr>");
       continue;
     }
     const heading = line.match(/^(#{1,4})\s+(.+)$/);
@@ -171,36 +248,35 @@ function markdownToHtml(markdown, currentRel) {
       const text = heading[2].trim();
       const id = slug(text);
       const inner = inline(text, currentRel);
-      const anchor = level === 1 ? "" : `<a class="anchor" href="#${id}" aria-label="Anchor link">#</a>`;
-      html.push(`<h${level} id="${id}">${anchor}${inner}</h${level}>`);
+      if (level === 1) {
+        html.push(`<h1 id="${id}">${inner}</h1>`);
+      } else {
+        html.push(`<h${level} id="${id}"><a class="anchor" href="#${id}" aria-label="Anchor link">#</a>${inner}</h${level}>`);
+      }
       continue;
     }
     if (line.trimStart().startsWith("|") && line.includes("|", line.indexOf("|") + 1) && isDivider(lines[i + 1] || "")) {
       flushParagraph();
       closeList();
       const header = splitRow(line);
+      const aligns = splitRow(lines[i + 1]).map((cell) => {
+        const left = cell.startsWith(":");
+        const right = cell.endsWith(":");
+        return right && left ? "center" : right ? "right" : left ? "left" : "";
+      });
       i += 1;
       const rows = [];
       while (i + 1 < lines.length && lines[i + 1].trimStart().startsWith("|")) {
         i += 1;
         rows.push(splitRow(lines[i]));
       }
-      const th = header.map((cell) => `<th>${inline(cell, currentRel)}</th>`).join("");
-      const tb = rows
-        .map((row) => `<tr>${row.map((cell) => `<td>${inline(cell, currentRel)}</td>`).join("")}</tr>`)
-        .join("");
+      const th = header.map((c, idx) => `<th${aligns[idx] ? ` style="text-align:${aligns[idx]}"` : ""}>${inline(c, currentRel)}</th>`).join("");
+      const tb = rows.map((r) => `<tr>${r.map((c, idx) => `<td${aligns[idx] ? ` style="text-align:${aligns[idx]}"` : ""}>${inline(c, currentRel)}</td>`).join("")}</tr>`).join("");
       html.push(`<table><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`);
       continue;
     }
     const bullet = line.match(/^\s*-\s+(.+)$/);
     const numbered = line.match(/^\s*\d+\.\s+(.+)$/);
-    const quote = line.match(/^>\s+(.+)$/);
-    if (quote) {
-      flushParagraph();
-      closeList();
-      html.push(`<blockquote>${inline(quote[1], currentRel)}</blockquote>`);
-      continue;
-    }
     if (bullet || numbered) {
       flushParagraph();
       const tag = bullet ? "ul" : "ol";
@@ -216,6 +292,7 @@ function markdownToHtml(markdown, currentRel) {
   }
   flushParagraph();
   closeList();
+  flushBlockquote();
   return html.join("\n");
 }
 
@@ -227,79 +304,155 @@ function inline(text, currentRel) {
   });
   out = escapeHtml(out)
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => `<a href="${escapeAttr(rewriteHref(href, currentRel))}">${label}</a>`);
+    .replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<em>$2</em>")
+    .replace(/(^|[^_])_([^_\s][^_]*?)_(?!_)/g, "$1<em>$2</em>")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => `<a href="${escapeAttr(rewriteHref(href, currentRel))}">${label}</a>`)
+    .replace(/&lt;(https?:\/\/[^\s<>]+)&gt;/g, '<a href="$1">$1</a>');
   out = out.replace(/\\\|/g, "|");
   out = out.replace(/&lt;br&gt;/g, "<br>");
-  return out.replace(/\u0000(\d+)\u0000/g, (_, index) => stash[Number(index)]);
+  return out.replace(/\u0000(\d+)\u0000/g, (_, i) => stash[Number(i)]);
 }
 
 function rewriteHref(href, currentRel) {
-  if (/^(https?:|mailto:|#)/.test(href)) return href;
+  if (/^(https?:|mailto:|tel:|#)/.test(href)) return href;
   const [raw, hash = ""] = href.split("#");
-  if (!raw) return `#${hash}`;
+  if (!raw) return hash ? `#${hash}` : "";
+  if (raw.startsWith("/")) {
+    const target = permalinkMap.get(normalizePermalink(raw));
+    if (target) {
+      const currentOut = pageMap.get(currentRel)?.outRel || outPath(currentRel);
+      const out = hrefToOutRel(target.outRel, currentOut);
+      return hash ? `${out}#${hash}` : out;
+    }
+    return href;
+  }
   if (!raw.endsWith(".md")) return href;
-  const target = path.posix.normalize(path.posix.join(path.posix.dirname(currentRel), raw));
-  const rewritten = path.posix.relative(path.posix.dirname(outPath(currentRel)), outPath(target)) || "index.html";
+  const from = path.posix.dirname(currentRel);
+  const target = path.posix.normalize(path.posix.join(from, raw));
+  let rewritten = pageMap.get(target)?.outRel || outPath(target);
+  const currentOut = pageMap.get(currentRel)?.outRel || outPath(currentRel);
+  rewritten = hrefToOutRel(rewritten, currentOut);
   return `${rewritten}${hash ? `#${hash}` : ""}`;
 }
 
 function tocFromHtml(html) {
   const items = [];
   const re = /<h([23]) id="([^"]+)">([\s\S]*?)<\/h[23]>/g;
-  let match;
-  while ((match = re.exec(html))) {
-    const text = match[3]
+  let m;
+  while ((m = re.exec(html))) {
+    const text = m[3]
       .replace(/<a class="anchor"[^>]*>.*?<\/a>/, "")
       .replace(/<[^>]+>/g, "")
       .trim();
-    items.push({ level: Number(match[1]), id: match[2], text });
+    items.push({ level: Number(m[1]), id: m[2], text });
   }
   if (items.length < 2) return "";
-  return `<nav class="toc" aria-label="On this page"><h2>On This Page</h2>${items
-    .map((item) => `<a class="toc-l${item.level}" href="#${item.id}">${escapeHtml(item.text)}</a>`)
+  return `<nav class="toc" aria-label="On this page"><h2>On this page</h2>${items
+    .map((i) => `<a class="toc-l${i.level}" href="#${i.id}">${escapeHtml(i.text)}</a>`)
     .join("")}</nav>`;
+}
+
+function isHomePage(page) {
+  if (page.frontmatter.permalink && normalizePermalink(page.frontmatter.permalink) === "/") return true;
+  return page.rel === "index.md" || page.rel === "README.md";
+}
+
+function homeHero(page) {
+  const description = page.frontmatter.description || productDescription;
+  const installRel = pageMap.get("install.md")?.outRel
+    ? hrefToOutRel(pageMap.get("install.md").outRel, page.outRel)
+    : "install.html";
+  const quickstartRel = pageMap.get("quickstart.md")?.outRel
+    ? hrefToOutRel(pageMap.get("quickstart.md").outRel, page.outRel)
+    : "quickstart.html";
+  const services = ["Gmail", "Calendar", "Drive", "Docs", "Sheets", "Slides", "Forms", "Contacts", "Tasks", "Apps Script", "Admin"];
+  return `<header class="home-hero">
+        <p class="eyebrow">Google Workspace · One CLI</p>
+        <h1>${escapeHtml(productTagline)}</h1>
+        <p class="lede">${escapeHtml(description)}</p>
+        <div class="home-cta">
+          <a class="btn btn-primary" href="${quickstartRel}">Quickstart</a>
+          <a class="btn btn-ghost" href="${repoBase}" rel="noopener">GitHub</a>
+          <div class="home-install" aria-label="Install with Homebrew">
+            <span class="prompt" aria-hidden="true">$</span>
+            <code>${escapeHtml(brewInstall)}</code>
+          </div>
+        </div>
+        <div class="home-services" aria-label="Supported services">
+          ${services.map((s) => `<span>${escapeHtml(s)}</span>`).join("")}
+        </div>
+        <p class="muted"><a href="${installRel}">Other install options →</a></p>
+      </header>`;
+}
+
+function standardHero(page, sectionName, editUrl) {
+  return `<header class="hero">
+        <div class="hero-text">
+          <p class="eyebrow">${escapeHtml(sectionName)}</p>
+          <h1>${escapeHtml(page.title)}</h1>
+        </div>
+        <div class="hero-meta">
+          <a class="repo" href="${repoBase}" rel="noopener">GitHub</a>
+          <a class="edit" href="${escapeAttr(editUrl)}" rel="noopener">Edit page</a>
+        </div>
+      </header>`;
 }
 
 function layout({ page, html, toc, prev, next, sectionName }) {
   const depth = page.outRel.split("/").length - 1;
   const rootPrefix = depth ? "../".repeat(depth) : "";
   const editUrl = `${repoEditBase}/${page.rel}`;
+  const home = isHomePage(page);
+  const prevNext = !home && (prev || next) ? pageNavHtml(prev, next, page.outRel) : "";
+  const heroBlock = home ? homeHero(page) : standardHero(page, sectionName, editUrl);
+  const articleClass = home ? "doc doc-home" : "doc";
+  const tocBlock = home ? "" : toc;
+  const titleSuffix = home ? `${productName} — ${productTagline}` : `${page.title} — ${productName}`;
+  const description = page.frontmatter.description || (home ? productDescription : `${page.title} — ${productName} CLI documentation.`);
+  const canonicalUrl = pageCanonicalUrl(page);
+  const socialMeta = [
+    ["link", "rel", "canonical", "href", canonicalUrl],
+    ["meta", "property", "og:type", "content", "website"],
+    ["meta", "property", "og:site_name", "content", productName],
+    ["meta", "property", "og:title", "content", titleSuffix],
+    ["meta", "property", "og:description", "content", description],
+    ["meta", "property", "og:url", "content", canonicalUrl],
+    ["meta", "name", "twitter:card", "content", "summary_large_image"],
+    ["meta", "name", "twitter:title", "content", titleSuffix],
+    ["meta", "name", "twitter:description", "content", description],
+  ].map(tagHtml).join("\n  ");
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(page.title)} - gog docs</title>
-  <meta name="description" content="gog CLI documentation for Google Workspace automation.">
+  <title>${escapeHtml(titleSuffix)}</title>
+  <meta name="description" content="${escapeAttr(description)}">
+  ${socialMeta}
+  <link rel="icon" href="${rootPrefix}favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>${css()}</style>
 </head>
-<body>
+<body${home ? ' class="home"' : ""}>
   <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
-    <span></span><span></span><span></span>
+    <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
   </button>
   <div class="shell">
     <aside class="sidebar">
-      <a class="brand" href="${rootPrefix}index.html" aria-label="gog docs home">
+      <a class="brand" href="${hrefToOutRel("index.html", page.outRel)}" aria-label="${productName} docs home">
         <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-        <span><strong>gog</strong><small>Google CLI docs</small></span>
+        <span><strong>${escapeHtml(productName)}</strong><small>Google CLI docs</small></span>
       </a>
-      <label class="search"><span>Search</span><input id="doc-search" type="search" placeholder="gmail get, auth, sheets"></label>
-      <nav>${navHtml(page.rel, rootPrefix)}</nav>
+      <label class="search"><span>Search</span><input id="doc-search" type="search" placeholder="gmail, calendar, sheets"></label>
+      <nav>${navHtml(page)}</nav>
     </aside>
     <main>
-      <header class="hero">
-        <div>
-          <p class="eyebrow">${escapeHtml(sectionName)}</p>
-          <h1>${escapeHtml(page.title)}</h1>
-        </div>
-        <div class="hero-links">
-          <a href="https://github.com/steipete/gogcli" rel="noopener">GitHub</a>
-          <a href="${escapeAttr(editUrl)}" rel="noopener">Edit</a>
-        </div>
-      </header>
-      <div class="doc-grid">
-        <article class="doc">${html}${pageNavHtml(prev, next, rootPrefix)}</article>
-        ${toc}
+      ${heroBlock}
+      <div class="doc-grid${home ? " doc-grid-home" : ""}">
+        <article class="${articleClass}">${html}${prevNext}</article>
+        ${tocBlock}
       </div>
     </main>
   </div>
@@ -308,274 +461,109 @@ function layout({ page, html, toc, prev, next, sectionName }) {
 </html>`;
 }
 
-function navHtml(currentRel, rootPrefix) {
+function pageCanonicalUrl(page) {
+  if (!siteBase) return page.outRel;
+  if (page.outRel === "index.html") return `${siteBase}/`;
+  const rel = page.outRel.endsWith("/index.html") ? page.outRel.slice(0, -"index.html".length) : page.outRel;
+  return `${siteBase}/${rel}`;
+}
+
+function tagHtml([tag, k1, v1, k2, v2]) {
+  return tag === "link" ? `<link ${k1}="${v1}" ${k2}="${escapeAttr(v2)}">` : `<meta ${k1}="${v1}" ${k2}="${escapeAttr(v2)}">`;
+}
+
+function pageNavHtml(prev, next, currentOutRel) {
+  const cell = (page, dir) => {
+    if (!page) return "";
+    return `<a class="page-nav-${dir}" href="${hrefToOutRel(page.outRel, currentOutRel)}"><small>${dir === "prev" ? "Previous" : "Next"}</small><span>${escapeHtml(page.title)}</span></a>`;
+  };
+  return `<nav class="page-nav" aria-label="Pager">${cell(prev, "prev")}${cell(next, "next")}</nav>`;
+}
+
+function navHtml(currentPage) {
   return nav
-    .map((section) => {
-      const pages = section.pages
-        .map((page) => {
-          const href = rootPrefix + page.outRel;
-          const active = page.rel === currentRel ? " aria-current=\"page\"" : "";
-          return `<a${active} data-title="${escapeAttr(page.title.toLowerCase())}" href="${href}">${escapeHtml(shortTitle(page))}</a>`;
-        })
-        .join("");
-      return `<section><h2>${escapeHtml(section.name)}</h2>${pages}</section>`;
-    })
+    .map((section) => `<section><h2>${escapeHtml(section.name)}</h2>${section.pages.map((page) => {
+      const href = hrefToOutRel(page.outRel, currentPage.outRel);
+      const active = page.rel === currentPage.rel ? " active" : "";
+      return `<a class="nav-link${active}" href="${href}">${escapeHtml(navTitle(page))}</a>`;
+    }).join("")}</section>`)
     .join("");
 }
 
-function shortTitle(page) {
-  if (page.rel === "README.md") return "Overview";
+function navTitle(page) {
+  if (page.rel === "index.md") return "Overview";
   if (page.rel === "commands/README.md") return "Command Index";
   return page.title.replace(/^`gog\s*/, "").replace(/`$/, "");
 }
 
-function pageNavHtml(prev, next, rootPrefix) {
-  if (!prev && !next) return "";
-  return `<nav class="page-nav">${prev ? `<a href="${rootPrefix + prev.outRel}">Previous<br><strong>${escapeHtml(prev.title)}</strong></a>` : "<span></span>"}${next ? `<a href="${rootPrefix + next.outRel}">Next<br><strong>${escapeHtml(next.title)}</strong></a>` : "<span></span>"}</nav>`;
+function hrefToOutRel(targetOutRel, currentOutRel) {
+  const currentDir = path.posix.dirname(currentOutRel);
+  if (targetOutRel.endsWith("/index.html")) {
+    const targetDir = targetOutRel.slice(0, -"index.html".length);
+    const rel = path.posix.relative(currentDir, targetDir || ".") || ".";
+    return rel.endsWith("/") ? rel : `${rel}/`;
+  }
+  if (targetOutRel === "index.html") {
+    const rel = path.posix.relative(currentDir, ".") || ".";
+    return rel.endsWith("/") ? rel : `${rel}/`;
+  }
+  return path.posix.relative(currentDir, targetOutRel) || path.posix.basename(targetOutRel);
 }
 
 function slug(text) {
-  return text
-    .toLowerCase()
-    .replace(/<[^>]+>/g, "")
-    .replace(/`/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+  return text.toLowerCase().replace(/`/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 }
 
 function escapeAttr(value) {
-  return escapeHtml(value).replace(/'/g, "&#39;");
+  return escapeHtml(value);
 }
 
-function css() {
-  return `
-:root {
-  --bg: #fbfbfa;
-  --panel: #ffffff;
-  --ink: #18202a;
-  --muted: #667085;
-  --line: #e6e8ec;
-  --blue: #1a73e8;
-  --red: #ea4335;
-  --yellow: #fbbc04;
-  --green: #34a853;
-  --code: #f6f8fb;
-  --shadow: 0 18px 44px rgba(24,32,42,.08);
-  color-scheme: light;
-}
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font: 15px/1.62 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-a { color: var(--blue); text-decoration: none; }
-a:hover { text-decoration: underline; }
-code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-.shell { display: grid; grid-template-columns: 292px minmax(0, 1fr); min-height: 100vh; }
-.sidebar {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow: auto;
-  border-right: 1px solid var(--line);
-  background: rgba(255,255,255,.86);
-  padding: 22px 18px;
-}
-.brand { display: flex; align-items: center; gap: 12px; color: var(--ink); margin-bottom: 22px; }
-.brand:hover { text-decoration: none; }
-.brand strong { display: block; font-size: 21px; line-height: 1; letter-spacing: -.02em; }
-.brand small { color: var(--muted); font-size: 12px; }
-.mark { display: grid; grid-template-columns: repeat(2, 12px); grid-template-rows: repeat(2, 12px); gap: 3px; }
-.mark i:nth-child(1) { background: var(--blue); }
-.mark i:nth-child(2) { background: var(--red); }
-.mark i:nth-child(3) { background: var(--yellow); }
-.mark i:nth-child(4) { background: var(--green); }
-.mark i { border-radius: 3px; display: block; }
-.search { display: block; margin-bottom: 18px; }
-.search span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
-.search input {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 9px 10px;
-  color: var(--ink);
-  background: var(--panel);
-}
-.sidebar section { margin: 20px 0; }
-.sidebar h2 { color: var(--muted); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; margin: 0 0 7px; }
-.sidebar a {
-  display: block;
-  color: #3f4a59;
-  padding: 5px 8px;
-  border-radius: 7px;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.sidebar a[aria-current="page"], .sidebar a:hover { color: var(--ink); background: #f0f4fb; text-decoration: none; }
-main { padding: 34px min(5vw, 64px) 64px; min-width: 0; }
-.hero {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: flex-start;
-  margin: 0 auto 26px;
-  max-width: 1180px;
-}
-.eyebrow { color: var(--muted); text-transform: uppercase; letter-spacing: .11em; font-size: 12px; margin: 0 0 8px; }
-h1 { font-size: clamp(34px, 5vw, 58px); line-height: 1; letter-spacing: -.045em; margin: 0; max-width: 880px; }
-.hero-links { display: flex; gap: 8px; flex-wrap: wrap; }
-.hero-links a {
-  color: var(--ink);
-  border: 1px solid var(--line);
-  background: var(--panel);
-  border-radius: 8px;
-  padding: 8px 11px;
-  box-shadow: 0 8px 20px rgba(24,32,42,.04);
-}
-.doc-grid {
-  max-width: 1180px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
-  gap: 30px;
-  align-items: start;
-}
-.doc {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
-  padding: min(5vw, 48px);
-  min-width: 0;
-}
-.doc h1 { font-size: 36px; margin-bottom: 18px; }
-.doc h2 { font-size: 24px; margin: 38px 0 12px; padding-top: 4px; }
-.doc h3 { font-size: 18px; margin: 28px 0 10px; }
-.doc p, .doc li { color: #344054; }
-.doc blockquote {
-  margin: 18px 0;
-  padding: 12px 16px;
-  border-left: 4px solid var(--blue);
-  background: #f7faff;
-  color: #344054;
-}
-.doc pre {
-  overflow: auto;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--code);
-  padding: 15px;
-}
-.doc code { font-size: .92em; }
-.doc :not(pre) > code {
-  background: var(--code);
-  border: 1px solid #e8ebf1;
-  border-radius: 5px;
-  padding: 1px 5px;
-}
-.doc table {
-  display: block;
-  width: 100%;
-  overflow: auto;
-  border-collapse: collapse;
-  margin: 18px 0;
-  font-size: 13px;
-}
-.doc th, .doc td { border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; }
-.doc th { background: #f8fafc; text-align: left; }
-.anchor { color: #b5bdc9; margin-right: 7px; }
-.toc {
-  position: sticky;
-  top: 24px;
-  color: var(--muted);
-  font-size: 13px;
-  max-height: calc(100vh - 48px);
-  overflow: auto;
-}
-.toc h2 { color: var(--ink); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
-.toc a { display: block; color: var(--muted); padding: 5px 0; }
-.toc-l3 { padding-left: 12px !important; }
-.page-nav {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 42px;
-  border-top: 1px solid var(--line);
-  padding-top: 20px;
-}
-.page-nav a {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px;
-  color: var(--muted);
-}
-.page-nav a:last-child { text-align: right; }
-.page-nav strong { color: var(--ink); }
-.nav-toggle { display: none; }
-@media (max-width: 960px) {
-  .shell { display: block; }
-  .sidebar {
-    position: fixed;
-    inset: 0 auto 0 0;
-    width: min(320px, 86vw);
-    transform: translateX(-100%);
-    transition: transform .18s ease;
-    z-index: 10;
+function validateLinks(outputDir) {
+  const failures = [];
+  // Generated command pages embed literal placeholders like `(url)` / `(path)` from help text.
+  // These are not real links, so skip them rather than fail the build.
+  const placeholderHrefs = /^(url|path|file|dir|name)$/i;
+  for (const file of allHtml(outputDir)) {
+    const html = fs.readFileSync(file, "utf8");
+    for (const match of html.matchAll(/href="([^"]+)"/g)) {
+      const href = match[1];
+      if (/^(#|https?:|mailto:|tel:|javascript:)/.test(href)) continue;
+      if (placeholderHrefs.test(href)) continue;
+      const [rawPath, anchor = ""] = href.split("#");
+      const targetPath = rawPath
+        ? path.resolve(path.dirname(file), rawPath)
+        : file;
+      const target = fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory()
+        ? path.join(targetPath, "index.html")
+        : targetPath;
+      if (!fs.existsSync(target)) {
+        failures.push(`${path.relative(outputDir, file)}: ${href} -> missing ${path.relative(outputDir, target)}`);
+        continue;
+      }
+      if (anchor) {
+        const targetHtml = fs.readFileSync(target, "utf8");
+        if (!targetHtml.includes(`id="${anchor}"`) && !targetHtml.includes(`name="${anchor}"`)) {
+          failures.push(`${path.relative(outputDir, file)}: ${href} -> missing anchor`);
+        }
+      }
+    }
   }
-  body.nav-open .sidebar { transform: translateX(0); }
-  .nav-toggle {
-    display: grid;
-    position: fixed;
-    top: 12px;
-    left: 12px;
-    z-index: 20;
-    gap: 4px;
-    border: 1px solid var(--line);
-    background: var(--panel);
-    border-radius: 8px;
-    padding: 10px;
+  if (failures.length) {
+    throw new Error(`broken docs links:\n${failures.join("\n")}`);
   }
-  .nav-toggle span { width: 18px; height: 2px; background: var(--ink); display: block; }
-  main { padding: 70px 18px 42px; }
-  .hero { display: block; }
-  .hero-links { margin-top: 18px; }
-  .doc-grid { display: block; }
-  .toc { display: none; }
-  .doc { padding: 24px; }
-}
-`;
 }
 
-function js() {
-  return `
-const toggle = document.querySelector(".nav-toggle");
-toggle?.addEventListener("click", () => {
-  const open = document.body.classList.toggle("nav-open");
-  toggle.setAttribute("aria-expanded", String(open));
-});
-document.querySelectorAll(".sidebar a").forEach((link) => {
-  link.addEventListener("click", () => document.body.classList.remove("nav-open"));
-});
-const search = document.getElementById("doc-search");
-search?.addEventListener("input", () => {
-  const q = search.value.trim().toLowerCase();
-  document.querySelectorAll(".sidebar nav a").forEach((link) => {
-    const haystack = (link.dataset.title || "") + " " + link.textContent.toLowerCase();
-    link.hidden = q !== "" && !haystack.includes(q);
-  });
-});
-`;
+function allHtml(dir) {
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .flatMap((entry) => {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) return allHtml(full);
+      return entry.name.endsWith(".html") ? [full] : [];
+    })
+    .sort();
 }
