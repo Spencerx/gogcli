@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 
 	"github.com/steipete/gogcli/internal/ui"
@@ -47,18 +46,8 @@ func newSheetsRawTestServer(t *testing.T, status int, body map[string]any, hit *
 
 func installMockSheetsService(t *testing.T, srv *httptest.Server) {
 	t.Helper()
-	orig := newSheetsService
-	t.Cleanup(func() { newSheetsService = orig })
-
-	svc, err := sheets.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newSheetsService = func(context.Context, string) (*sheets.Service, error) { return svc, nil }
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", sheets.NewService)
+	stubGoogleTestService(t, &newSheetsService, svc)
 }
 
 func fullSheetResponse(id string) map[string]any {

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +9,6 @@ import (
 	"testing"
 
 	"google.golang.org/api/gmail/v1"
-	"google.golang.org/api/option"
 )
 
 type gmailRawHit struct {
@@ -41,18 +39,8 @@ func newGmailRawTestServer(t *testing.T, status int, body map[string]any, hit *g
 
 func installMockGmailService(t *testing.T, srv *httptest.Server) {
 	t.Helper()
-	orig := newGmailService
-	t.Cleanup(func() { newGmailService = orig })
-
-	svc, err := gmail.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newGmailService = func(context.Context, string) (*gmail.Service, error) { return svc, nil }
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", gmail.NewService)
+	stubGoogleTestService(t, &newGmailService, svc)
 }
 
 func fullGmailMessageResponse(id string) map[string]any {

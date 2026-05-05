@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
 )
 
@@ -33,18 +31,8 @@ func newPeopleRawTestServer(t *testing.T, status int, body map[string]any) *http
 
 func installMockPeopleContactsService(t *testing.T, srv *httptest.Server) {
 	t.Helper()
-	orig := newPeopleContactsService
-	t.Cleanup(func() { newPeopleContactsService = orig })
-
-	svc, err := people.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newPeopleContactsService = func(context.Context, string) (*people.Service, error) { return svc, nil }
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", people.NewService)
+	stubGoogleTestService(t, &newPeopleContactsService, svc)
 }
 
 func fullPersonResponse(id string) map[string]any {

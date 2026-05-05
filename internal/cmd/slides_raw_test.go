@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"google.golang.org/api/option"
 	"google.golang.org/api/slides/v1"
 )
 
@@ -35,18 +33,8 @@ func newSlidesRawTestServer(t *testing.T, status int, body map[string]any) *http
 
 func installMockSlidesService(t *testing.T, srv *httptest.Server) {
 	t.Helper()
-	orig := newSlidesService
-	t.Cleanup(func() { newSlidesService = orig })
-
-	svc, err := slides.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newSlidesService = func(context.Context, string) (*slides.Service, error) { return svc, nil }
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", slides.NewService)
+	stubGoogleTestService(t, &newSlidesService, svc)
 }
 
 func fullPresentationResponse(id string) map[string]any {

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,7 +8,6 @@ import (
 	"testing"
 
 	formsapi "google.golang.org/api/forms/v1"
-	"google.golang.org/api/option"
 )
 
 func newFormsRawTestServer(t *testing.T, status int, body map[string]any) *httptest.Server {
@@ -33,18 +31,8 @@ func newFormsRawTestServer(t *testing.T, status int, body map[string]any) *httpt
 
 func installMockFormsService(t *testing.T, srv *httptest.Server) {
 	t.Helper()
-	orig := newFormsService
-	t.Cleanup(func() { newFormsService = orig })
-
-	svc, err := formsapi.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newFormsService = func(context.Context, string) (*formsapi.Service, error) { return svc, nil }
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", formsapi.NewService)
+	stubGoogleTestService(t, &newFormsService, svc)
 }
 
 func fullFormResponse(id string) map[string]any {

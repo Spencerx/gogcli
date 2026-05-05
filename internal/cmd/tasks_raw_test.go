@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"google.golang.org/api/option"
 	"google.golang.org/api/tasks/v1"
 )
 
@@ -39,18 +37,8 @@ func newTasksRawTestServer(t *testing.T, status int, body map[string]any) *httpt
 
 func installMockTasksService(t *testing.T, srv *httptest.Server) {
 	t.Helper()
-	orig := newTasksService
-	t.Cleanup(func() { newTasksService = orig })
-
-	svc, err := tasks.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newTasksService = func(context.Context, string) (*tasks.Service, error) { return svc, nil }
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", tasks.NewService)
+	stubGoogleTestService(t, &newTasksService, svc)
 }
 
 func fullTaskResponse(id string) map[string]any {

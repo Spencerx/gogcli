@@ -5,28 +5,16 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/option"
 )
 
 func newDriveTestService(t *testing.T, h http.Handler) (*drive.Service, func()) {
 	t.Helper()
 
-	srv := httptest.NewServer(h)
-
-	svc, err := drive.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	return svc, srv.Close
+	return newGoogleTestService(t, h, drive.NewService)
 }
 
 func stubDriveService(svc *drive.Service) func(context.Context, string) (*drive.Service, error) {
@@ -35,9 +23,7 @@ func stubDriveService(svc *drive.Service) func(context.Context, string) (*drive.
 
 func stubDriveServiceForTest(t *testing.T, svc *drive.Service) {
 	t.Helper()
-	origNew := newDriveService
-	t.Cleanup(func() { newDriveService = origNew })
-	newDriveService = stubDriveService(svc)
+	stubGoogleTestService(t, &newDriveService, svc)
 }
 
 func newDriveMetadataTestService(t *testing.T, mimeType string) (*drive.Service, func()) {

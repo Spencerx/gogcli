@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,7 +8,6 @@ import (
 	"testing"
 
 	"google.golang.org/api/calendar/v3"
-	"google.golang.org/api/option"
 )
 
 func newCalendarRawTestServer(t *testing.T, status int, body map[string]any) *httptest.Server {
@@ -42,18 +40,8 @@ func newCalendarRawTestServer(t *testing.T, status int, body map[string]any) *ht
 
 func installMockCalendarService(t *testing.T, srv *httptest.Server) {
 	t.Helper()
-	orig := newCalendarService
-	t.Cleanup(func() { newCalendarService = orig })
-
-	svc, err := calendar.NewService(context.Background(),
-		option.WithoutAuthentication(),
-		option.WithHTTPClient(srv.Client()),
-		option.WithEndpoint(srv.URL+"/"),
-	)
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-	newCalendarService = func(context.Context, string) (*calendar.Service, error) { return svc, nil }
+	svc := newGoogleTestServiceWithEndpoint(t, srv.Client(), srv.URL+"/", calendar.NewService)
+	stubGoogleTestService(t, &newCalendarService, svc)
 }
 
 func fullCalendarEventResponse(id string) map[string]any {
