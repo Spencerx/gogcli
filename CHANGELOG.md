@@ -1,34 +1,33 @@
 # Changelog
 
-## 0.15.0 - Unreleased
+## 0.16.0 - Unreleased
+
+## 0.15.0 - 2026-05-05
 
 ### Added
-- Install: publish a GHCR Docker image for release tags, with a non-root runtime image and file-keyring docs for container automation. (#539, #444) — thanks @HuckOps and @rdehuyss.
-- Gmail: add `--sanitize-content` (`--safe`) to `gmail get` and `gmail thread get` for agent-oriented sanitized content output without raw Gmail payloads in JSON. (#238, #220) — thanks @urasmutlu.
-- Raw API dumps: add `docs raw`, `sheets raw`, `slides raw`, `drive raw`, `gmail raw`, `calendar raw`, `people raw`, `contacts raw`, `tasks raw`, and `forms raw` subcommands for lossless Google API JSON output, with `--pretty`, Drive raw redaction defaults, Sheets grid-data warnings, and a raw-output security audit. (#495, #496) — thanks @karbassi.
-- Docs: add `docs format` and plain-text `docs write` formatting flags for fonts, colors, bold/italic/underline/strikethrough, alignment, and line spacing. (#479) — thanks @mmaghsoodnia.
-- Drive: add `--fields` to `drive ls` and `drive get` so callers can pass Drive API field masks for fields beyond the default JSON set. (#495) — thanks @karbassi.
-- Drive: add read-only `drive tree`, `drive du`, and `drive inventory` reports for auditing folder contents and sizes. (#116) — thanks @rohan-patnaik.
-- Contacts: add preview-only `contacts dedupe` to find likely duplicate contacts by email/phone, with opt-in name matching and JSON/table merge plans. (#116) — thanks @rohan-patnaik.
-- Sheets: add `sheets table` list/get/create/delete commands for Google Sheets structured tables. (#470) — thanks @Pedrohgv.
-- Agent safety: add baked safety-profile builds for fail-closed agent binaries, with `agent-safe`, `readonly`, and `full` profiles, filtered help/schema output, docs, and build tooling. (#366, #239) — thanks @drewburchfield.
-- Calendar: add `--with-meet` to `calendar update` for adding Google Meet conferencing to existing events. (#538) — thanks @alexisperumal.
-- Calendar: add `calendar move` / `calendar transfer` to move an event to another calendar and change its organizer. (#448) — thanks @markusbkoch.
-- Docs: add `docs add-tab`, `docs rename-tab`, and `docs delete-tab` for managing Google Docs tabs. (#547) — thanks @chopenhauer.
-- Docs: support tab-scoped Markdown append and find-replace flows. (#541) — thanks @donbowman.
-- Sheets: add `sheets table append` for appending rows to structured Sheets tables without targeting headers directly.
-- Sheets: add header-safe `sheets table clear` for clearing table data rows without touching headers or footers.
-- Sheets: add `sheets conditional-format` and `sheets banding` commands for rule-based formatting and alternating color banded ranges. (#378) — thanks @codBang.
-- Agent docs: add a bundled `gog` skill for safe JSON-first Google Workspace automation from coding agents. (#353, #451) — thanks @TimPietrusky and @sluramod.
-- Gmail: export filters as Gmail WebUI-importable Atom XML, while keeping API JSON export via `--format json`. (#174) — thanks @gwpl.
+- Export exact Google API JSON when the normal CLI view is too lossy: `docs raw`, `sheets raw`, `slides raw`, `drive raw`, `gmail raw`, `calendar raw`, `people raw`, `contacts raw`, `tasks raw`, and `forms raw`, with `--pretty`, safer Drive defaults, Sheets grid-data warnings, and a raw-output security audit. (#495, #496) — thanks @karbassi.
+- Audit Drive storage without changing files: `drive tree`, `drive du`, and `drive inventory` now report folder contents, sizes, and inventory data for cleanup/review workflows. (#116) — thanks @rohan-patnaik.
+- Find duplicate contacts safely: `contacts dedupe` is preview-only, matches by email/phone by default, supports opt-in name matching, and emits JSON/table merge plans without applying changes. (#116) — thanks @rohan-patnaik.
+- Read Gmail messages in agent-safe form: `gmail get --sanitize-content` / `--safe` and `gmail thread get --sanitize-content` return sanitized content without exposing raw Gmail payloads in JSON. (#238, #220) — thanks @urasmutlu.
+- Ship official container images: release tags now publish a non-root GHCR Docker image, with file-keyring docs for container automation. (#539, #444) — thanks @HuckOps and @rdehuyss.
+- Request custom Drive fields: `drive ls --fields` and `drive get --fields` pass Drive API field masks for data beyond the default JSON set. (#495) — thanks @karbassi.
+- Format Google Docs from the CLI: `docs format` and plain-text `docs write` formatting flags cover fonts, colors, bold/italic/underline/strikethrough, alignment, and line spacing. (#479) — thanks @mmaghsoodnia.
+- Manage Google Docs tabs: `docs add-tab`, `docs rename-tab`, `docs delete-tab`, plus tab-scoped Markdown append and find-replace flows. (#547, #541) — thanks @chopenhauer and @donbowman.
+- Work with structured Google Sheets tables: `sheets table` list/get/create/delete, `sheets table append`, and header-safe `sheets table clear`. (#470) — thanks @Pedrohgv.
+- Format Sheets visually: `sheets conditional-format` and `sheets banding` add rule-based formatting and alternating color banded ranges. (#378) — thanks @codBang.
+- Add Meet links to existing calendar events with `calendar update --with-meet`. (#538) — thanks @alexisperumal.
+- Move calendar events between calendars with `calendar move` / `calendar transfer`, including organizer changes. (#448) — thanks @markusbkoch.
+- Export Gmail filters as Gmail WebUI-importable Atom XML, while keeping API JSON export via `--format json`. (#174) — thanks @gwpl.
+- Build safer agent binaries with baked `agent-safe`, `readonly`, and `full` safety profiles, fail-closed command filtering, filtered help/schema output, docs, and build tooling. (#366, #239) — thanks @drewburchfield.
+- Use gog from coding agents more safely with the bundled `gog` skill for JSON-first Google Workspace automation. (#353, #451) — thanks @TimPietrusky and @sluramod.
 
 ### Fixed
-- Agent safety: compile baked safety profile policies into generated hash switches so raw allow/deny rule strings are not embedded as patchable YAML. (#540) — thanks @drewburchfield.
-- Backup: promote completed Gmail checkpoint shards into the final manifest and byte-split fallback Gmail message shards so full-mailbox runs do not create GitHub-rejected blobs or giant final pushes.
-- Backup export: stream decrypted shards one at a time, preserve resumable Gmail Markdown mirrors, handle very large JSONL rows, and write Markdown fallbacks for malformed MIME messages instead of aborting full-mailbox exports.
-- Calendar: accept documented `calendar events list` / `ls` selector forms with positional calendar IDs, `--cal`, `--calendars`, and `--all`. (#546) — thanks @BCudeOpenClaw.
-- Docs: make `docs find-replace --dry-run` read-only while still reporting match counts, and allow empty replacement strings to delete matches safely. (#542) — thanks @chrismdp.
-- Version: infer module versions from Go build info for `go install ...@tag` binaries that do not pass linker metadata. (#545, #544) — thanks @joshavant.
+- Make full-mailbox backups survive large Gmail exports by promoting completed checkpoint shards into the final manifest and byte-splitting fallback message shards before GitHub rejects oversized blobs.
+- Make backup exports more resumable and fault-tolerant by streaming decrypted shards, preserving Gmail Markdown mirrors, handling very large JSONL rows, and writing Markdown fallbacks for malformed MIME messages instead of aborting.
+- Keep agent safety profiles harder to patch by compiling baked policies into generated hash switches instead of embedding raw allow/deny YAML strings. (#540) — thanks @drewburchfield.
+- Show correct versions for `go install ...@tag` binaries by inferring module versions from Go build info when linker metadata is absent. (#545, #544) — thanks @joshavant.
+- Accept the documented `calendar events list` / `ls` selector forms, including positional calendar IDs, `--cal`, `--calendars`, and `--all`. (#546) — thanks @BCudeOpenClaw.
+- Keep `docs find-replace --dry-run` read-only while still reporting match counts, and allow empty replacement strings to delete matches safely. (#542) — thanks @chrismdp.
 
 ## 0.14.0 - 2026-04-28
 
