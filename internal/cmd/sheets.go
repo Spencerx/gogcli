@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -458,15 +457,16 @@ func (c *SheetsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if resp == nil {
-		return errors.New("spreadsheet not found")
+	resp, err = requireRawResponse(resp, "spreadsheet not found")
+	if err != nil {
+		return err
 	}
 
 	if len(resp.DeveloperMetadata) > 0 {
 		u.Err().Println("warning: response contains developerMetadata which may hold third-party app secrets")
 	}
 
-	return outfmt.WriteRaw(ctx, os.Stdout, resp, outfmt.RawOptions{Pretty: c.Pretty})
+	return writeRawJSON(ctx, resp, c.Pretty)
 }
 
 type SheetsMetadataCmd struct {

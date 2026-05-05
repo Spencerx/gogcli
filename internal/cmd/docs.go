@@ -71,11 +71,12 @@ func (c *DocsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 		return err
 	}
-	if doc == nil {
-		return errors.New("doc not found")
+	doc, err = requireRawResponse(doc, "doc not found")
+	if err != nil {
+		return err
 	}
 
-	return outfmt.WriteRaw(ctx, os.Stdout, doc, outfmt.RawOptions{Pretty: c.Pretty})
+	return writeRawJSON(ctx, doc, c.Pretty)
 }
 
 type DocsExportCmd struct {

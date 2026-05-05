@@ -2,12 +2,8 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
 	"strings"
-
-	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 // GmailRawCmd dumps the full Users.Messages.Get response as JSON. Note the
@@ -56,9 +52,10 @@ func (c *GmailRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if msg == nil {
-		return errors.New("message not found")
+	msg, err = requireRawResponse(msg, "message not found")
+	if err != nil {
+		return err
 	}
 
-	return outfmt.WriteRaw(ctx, os.Stdout, msg, outfmt.RawOptions{Pretty: c.Pretty})
+	return writeRawJSON(ctx, msg, c.Pretty)
 }

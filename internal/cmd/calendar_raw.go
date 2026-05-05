@@ -2,10 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
-	"os"
-
-	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 // CalendarRawCmd dumps the full Events.Get response as JSON, using the
@@ -44,9 +40,10 @@ func (c *CalendarRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if event == nil {
-		return errors.New("event not found")
+	event, err = requireRawResponse(event, "event not found")
+	if err != nil {
+		return err
 	}
 
-	return outfmt.WriteRaw(ctx, os.Stdout, event, outfmt.RawOptions{Pretty: c.Pretty})
+	return writeRawJSON(ctx, event, c.Pretty)
 }

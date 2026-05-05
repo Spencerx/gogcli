@@ -2,11 +2,7 @@ package cmd
 
 import (
 	"context"
-	"errors"
-	"os"
 	"strings"
-
-	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 // FormsRawCmd dumps the full Forms.Get response as JSON.
@@ -37,9 +33,10 @@ func (c *FormsRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if form == nil {
-		return errors.New("form not found")
+	form, err = requireRawResponse(form, "form not found")
+	if err != nil {
+		return err
 	}
 
-	return outfmt.WriteRaw(ctx, os.Stdout, form, outfmt.RawOptions{Pretty: c.Pretty})
+	return writeRawJSON(ctx, form, c.Pretty)
 }

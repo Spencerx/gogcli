@@ -149,8 +149,9 @@ func (c *DriveRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if f == nil {
-		return errors.New("file not found")
+	f, err = requireRawResponse(f, "file not found")
+	if err != nil {
+		return err
 	}
 
 	// Round-trip through JSON so we can redact by key when needed.
@@ -176,7 +177,7 @@ func (c *DriveRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 
-	return outfmt.WriteRaw(ctx, os.Stdout, m, outfmt.RawOptions{Pretty: c.Pretty})
+	return writeRawJSON(ctx, m, c.Pretty)
 }
 
 type DriveLsCmd struct {

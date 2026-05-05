@@ -2,11 +2,7 @@ package cmd
 
 import (
 	"context"
-	"errors"
-	"os"
 	"strings"
-
-	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 // defaultPeopleRawMask is the field mask used when the user does not
@@ -68,9 +64,10 @@ func runPeopleRaw(ctx context.Context, flags *RootFlags, id, fields string, pret
 	if err != nil {
 		return wrapPeopleAPIError(err)
 	}
-	if person == nil {
-		return errors.New("person not found")
+	person, err = requireRawResponse(person, "person not found")
+	if err != nil {
+		return err
 	}
 
-	return outfmt.WriteRaw(ctx, os.Stdout, person, outfmt.RawOptions{Pretty: pretty})
+	return writeRawJSON(ctx, person, pretty)
 }

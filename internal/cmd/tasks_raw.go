@@ -2,11 +2,7 @@ package cmd
 
 import (
 	"context"
-	"errors"
-	"os"
 	"strings"
-
-	"github.com/steipete/gogcli/internal/outfmt"
 )
 
 // TasksRawCmd dumps the full Tasks.Get response as JSON.
@@ -46,9 +42,10 @@ func (c *TasksRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if task == nil {
-		return errors.New("task not found")
+	task, err = requireRawResponse(task, "task not found")
+	if err != nil {
+		return err
 	}
 
-	return outfmt.WriteRaw(ctx, os.Stdout, task, outfmt.RawOptions{Pretty: c.Pretty})
+	return writeRawJSON(ctx, task, c.Pretty)
 }

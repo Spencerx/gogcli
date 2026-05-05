@@ -69,11 +69,12 @@ func (c *SlidesRawCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	if pres == nil {
-		return errors.New("presentation not found")
+	pres, err = requireRawResponse(pres, "presentation not found")
+	if err != nil {
+		return err
 	}
 
-	return outfmt.WriteRaw(ctx, os.Stdout, pres, outfmt.RawOptions{Pretty: c.Pretty})
+	return writeRawJSON(ctx, pres, c.Pretty)
 }
 
 type SlidesExportCmd struct {
