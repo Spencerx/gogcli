@@ -49,12 +49,16 @@ jobs:
         run: git checkout "$RELEASE_TAG"
 
       - name: Import macOS signing certificate
-        if: ${{ secrets.MACOS_SIGNING_CERT_BASE64 != '' }}
         env:
           MACOS_SIGNING_CERT_BASE64: ${{ secrets.MACOS_SIGNING_CERT_BASE64 }}
           MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
         run: |
           set -euo pipefail
+          if [ -z "$MACOS_SIGNING_CERT_BASE64" ]; then
+            echo "No macOS signing certificate configured; skipping import."
+            exit 0
+          fi
+
           KEYCHAIN="build.keychain"
           KEYCHAIN_PASSWORD="$(uuidgen)"
 
