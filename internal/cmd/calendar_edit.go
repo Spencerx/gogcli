@@ -281,8 +281,8 @@ func (c *CalendarUpdateCmd) Run(ctx context.Context, kctx *kong.Context, flags *
 	if flagProvided(kctx, "attendees") && flagProvided(kctx, "add-attendee") {
 		return usage("cannot use both --attendees and --add-attendee; use --attendees to replace all, or --add-attendee to add")
 	}
-	if err := c.resolvePlace(ctx, kctx); err != nil {
-		return err
+	if placeErr := c.resolvePlace(ctx, kctx); placeErr != nil {
+		return placeErr
 	}
 
 	sendUpdates, err := validateSendUpdates(c.SendUpdates)

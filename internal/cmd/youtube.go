@@ -428,8 +428,8 @@ func (c *YouTubeChannelsListCmd) Run(ctx context.Context, flags *RootFlags) erro
 	return nil
 }
 
-func validateYouTubeMax(max int64) error {
-	if max < 1 || max > 50 {
+func validateYouTubeMax(limit int64) error {
+	if limit < 1 || limit > 50 {
 		return usage("--max must be between 1 and 50")
 	}
 	return nil

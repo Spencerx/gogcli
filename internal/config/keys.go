@@ -99,6 +99,7 @@ var keySpecs = map[Key]KeySpec{
 			if v := os.Getenv("GOG_YOUTUBE_API_KEY"); v != "" {
 				return v
 			}
+
 			return cfg.YoutubeAPIKey
 		},
 		Set: func(cfg *File, value string) error {
@@ -118,9 +119,11 @@ var keySpecs = map[Key]KeySpec{
 			if v := os.Getenv("GOG_PLACES_API_KEY"); v != "" {
 				return v
 			}
+
 			if v := os.Getenv("GOOGLE_PLACES_API_KEY"); v != "" {
 				return v
 			}
+
 			return cfg.PlacesAPIKey
 		},
 		Set: func(cfg *File, value string) error {

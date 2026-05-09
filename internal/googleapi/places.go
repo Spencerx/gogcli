@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,14 @@ import (
 )
 
 const defaultPlacesBaseURL = "https://places.googleapis.com/v1"
+
+var (
+	errEmptyPlacesTextSearch = errors.New("empty places text search")
+	errNoPlacesMatched       = errors.New("no places matched")
+	errEmptyPlaceID          = errors.New("empty place id")
+	errMissingPlacesAPIKey   = errors.New("missing Places API key")
+	errPlacesAPI             = errors.New("places API error")
+)
 
 type PlacesClient struct {
 	apiKey  string
@@ -41,8 +50,8 @@ func WithPlacesHTTPClient(client *http.Client) PlacesClientOption {
 type Place struct {
 	ID               string `json:"id,omitempty"`
 	Name             string `json:"name,omitempty"`
-	FormattedAddress string `json:"formattedAddress,omitempty"`
-	GoogleMapsURI    string `json:"googleMapsUri,omitempty"`
+	FormattedAddress string `json:"formatted_address,omitempty"`
+	GoogleMapsURI    string `json:"google_maps_uri,omitempty"`
 }
 
 type PlacesLookupOptions struct {
@@ -61,19 +70,21 @@ func NewPlacesClient(apiKey string, opts ...PlacesClientOption) *PlacesClient {
 	for _, opt := range opts {
 		opt(c)
 	}
+
 	return c
 }
 
 func (c *PlacesClient) TextSearch(ctx context.Context, query string, opts PlacesLookupOptions) (*Place, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return nil, fmt.Errorf("empty places text search")
+		return nil, errEmptyPlacesTextSearch
 	}
 
 	body := map[string]string{"textQuery": query}
 	if opts.LanguageCode != "" {
 		body["languageCode"] = opts.LanguageCode
 	}
+
 	if opts.RegionCode != "" {
 		body["regionCode"] = opts.RegionCode
 	}
@@ -84,26 +95,30 @@ func (c *PlacesClient) TextSearch(ctx context.Context, query string, opts Places
 	if err := c.doJSON(ctx, http.MethodPost, c.baseURL+"/places:searchText", body, "places.id,places.displayName,places.formattedAddress,places.googleMapsUri", &resp); err != nil {
 		return nil, err
 	}
+
 	if len(resp.Places) == 0 {
-		return nil, fmt.Errorf("no places matched %q", query)
+		return nil, fmt.Errorf("%w: %q", errNoPlacesMatched, query)
 	}
+
 	return resp.Places[0].place(), nil
 }
 
 func (c *PlacesClient) Details(ctx context.Context, placeID string, opts PlacesLookupOptions) (*Place, error) {
 	placeID = normalizePlaceID(placeID)
 	if placeID == "" {
-		return nil, fmt.Errorf("empty place id")
+		return nil, errEmptyPlaceID
 	}
 
 	u, err := url.Parse(c.baseURL + "/places/" + url.PathEscape(placeID))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build Places details URL: %w", err)
 	}
+
 	q := u.Query()
 	if opts.LanguageCode != "" {
 		q.Set("languageCode", opts.LanguageCode)
 	}
+
 	if opts.RegionCode != "" {
 		q.Set("regionCode", opts.RegionCode)
 	}
@@ -113,56 +128,65 @@ func (c *PlacesClient) Details(ctx context.Context, placeID string, opts PlacesL
 	if err := c.doJSON(ctx, http.MethodGet, u.String(), nil, "id,displayName,formattedAddress,googleMapsUri", &resp); err != nil {
 		return nil, err
 	}
+
 	place := resp.place()
 	if place.ID == "" {
 		place.ID = placeID
 	}
+
 	return place, nil
 }
 
 func (c *PlacesClient) doJSON(ctx context.Context, method, endpoint string, body any, fieldMask string, out any) error {
 	if strings.TrimSpace(c.apiKey) == "" {
-		return fmt.Errorf("missing Places API key")
+		return errMissingPlacesAPIKey
 	}
 
 	var reader io.Reader
+
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			return err
+			return fmt.Errorf("encode Places API request: %w", err)
 		}
 		reader = bytes.NewReader(b)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, reader)
 	if err != nil {
-		return err
+		return fmt.Errorf("build Places API request: %w", err)
 	}
+
 	req.Header.Set("X-Goog-Api-Key", c.apiKey)
 	req.Header.Set("X-Goog-FieldMask", fieldMask)
+
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("send Places API request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 	if err != nil {
-		return err
+		return fmt.Errorf("read Places API response: %w", err)
 	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return placesAPIError(resp.StatusCode, respBody)
 	}
+
 	if err := json.Unmarshal(respBody, out); err != nil {
 		return fmt.Errorf("decode Places API response: %w", err)
 	}
+
 	return nil
 }
 
+//nolint:tagliatelle // Google Places API uses lowerCamelCase JSON fields.
 type placeResponse struct {
 	ID          string `json:"id"`
 	DisplayName struct {
@@ -184,6 +208,7 @@ func (p placeResponse) place() *Place {
 func normalizePlaceID(placeID string) string {
 	placeID = strings.TrimSpace(placeID)
 	placeID = strings.TrimPrefix(placeID, "places/")
+
 	return strings.TrimSpace(placeID)
 }
 
@@ -197,9 +222,11 @@ func placesAPIError(statusCode int, body []byte) error {
 	}
 	if err := json.Unmarshal(body, &parsed); err == nil && parsed.Error.Message != "" {
 		if parsed.Error.Status != "" {
-			return fmt.Errorf("Places API error %d %s: %s", statusCode, parsed.Error.Status, parsed.Error.Message)
+			return fmt.Errorf("%w %d %s: %s", errPlacesAPI, statusCode, parsed.Error.Status, parsed.Error.Message)
 		}
-		return fmt.Errorf("Places API error %d: %s", statusCode, parsed.Error.Message)
+
+		return fmt.Errorf("%w %d: %s", errPlacesAPI, statusCode, parsed.Error.Message)
 	}
-	return fmt.Errorf("Places API error %d: %s", statusCode, strings.TrimSpace(string(body)))
+
+	return fmt.Errorf("%w %d: %s", errPlacesAPI, statusCode, strings.TrimSpace(string(body)))
 }
