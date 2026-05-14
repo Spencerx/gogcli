@@ -39,10 +39,6 @@ type FormsAddQuestionCmd struct {
 }
 
 func (c *FormsAddQuestionCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	formID := strings.TrimSpace(normalizeGoogleID(c.FormID))
 	if formID == "" {
 		return usage("empty formId")
@@ -72,6 +68,10 @@ func (c *FormsAddQuestionCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryRunErr
 	}
 
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
 	svc, err := newFormsService(ctx, account)
 	if err != nil {
 		return err
@@ -178,6 +178,9 @@ func buildQuestion(qType string, c *FormsAddQuestionCmd) (*formsapi.Question, er
 			Options: opts,
 		}
 	case "scale":
+		if c.ScaleLow > c.ScaleHigh {
+			return nil, usage("--scale-low must be <= --scale-high")
+		}
 		q.ScaleQuestion = &formsapi.ScaleQuestion{
 			Low:       int64(c.ScaleLow),
 			High:      int64(c.ScaleHigh),
@@ -255,10 +258,6 @@ type FormsDeleteQuestionCmd struct {
 }
 
 func (c *FormsDeleteQuestionCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	formID := strings.TrimSpace(normalizeGoogleID(c.FormID))
 	if formID == "" {
 		return usage("empty formId")
@@ -267,6 +266,17 @@ func (c *FormsDeleteQuestionCmd) Run(ctx context.Context, flags *RootFlags) erro
 		return usage("index must be >= 0")
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "forms.deleteQuestion", map[string]any{
+		"form_id": formID,
+		"index":   c.Index,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
 	svc, err := newFormsService(ctx, account)
 	if err != nil {
 		return err
@@ -278,14 +288,6 @@ func (c *FormsDeleteQuestionCmd) Run(ctx context.Context, flags *RootFlags) erro
 	}
 	if c.Index >= len(form.Items) {
 		return usagef("question index %d out of range (form has %d items)", c.Index, len(form.Items))
-	}
-
-	if dryRunErr := dryRunExit(ctx, flags, "forms.deleteQuestion", map[string]any{
-		"form_id":    formID,
-		"index":      c.Index,
-		"item_count": len(form.Items),
-	}); dryRunErr != nil {
-		return dryRunErr
 	}
 
 	if confirmErr := confirmDestructiveChecked(ctx, flagsWithoutDryRun(flags), fmt.Sprintf("delete question %d from form %s", c.Index, formID)); confirmErr != nil {
@@ -404,10 +406,6 @@ type FormsUpdateCmd struct {
 }
 
 func (c *FormsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
 	formID := strings.TrimSpace(normalizeGoogleID(c.FormID))
 	if formID == "" {
 		return usage("empty formId")
@@ -420,6 +418,14 @@ func (c *FormsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if title == "" && description == "" && quiz == "" {
 		return usage("at least one of --title, --description, or --quiz is required")
 	}
+	var isQuiz bool
+	if quiz != "" {
+		var parseErr error
+		isQuiz, parseErr = strconv.ParseBool(quiz)
+		if parseErr != nil {
+			return usage("--quiz must be true or false")
+		}
+	}
 
 	if dryRunErr := dryRunExit(ctx, flags, "forms.update", map[string]any{
 		"form_id":     formID,
@@ -430,6 +436,10 @@ func (c *FormsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return dryRunErr
 	}
 
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
 	svc, err := newFormsService(ctx, account)
 	if err != nil {
 		return err
@@ -457,10 +467,6 @@ func (c *FormsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if quiz != "" {
-		isQuiz, parseErr := strconv.ParseBool(quiz)
-		if parseErr != nil {
-			return usage("--quiz must be true or false")
-		}
 		requests = append(requests, &formsapi.Request{
 			UpdateSettings: &formsapi.UpdateSettingsRequest{
 				Settings: &formsapi.FormSettings{

@@ -231,12 +231,16 @@ func TestFormsDeleteQuestionValidationAndDryRun(t *testing.T) {
 
 	t.Run("dry run skips mutation", func(t *testing.T) {
 		before := batchCalls
+		beforeGets := getCalls
 		err := runKong(t, &FormsDeleteQuestionCmd{}, []string{"form1", "0"}, ctx, &RootFlags{Account: "a@b.com", DryRun: true, NoInput: true})
 		if ExitCode(err) != 0 {
 			t.Fatalf("expected dry-run exit 0, got %v", err)
 		}
 		if batchCalls != before {
 			t.Fatalf("expected no batch update during dry-run, got %d -> %d", before, batchCalls)
+		}
+		if getCalls != beforeGets {
+			t.Fatalf("expected no form fetch during dry-run, got %d -> %d", beforeGets, getCalls)
 		}
 	})
 
@@ -251,7 +255,7 @@ func TestFormsDeleteQuestionValidationAndDryRun(t *testing.T) {
 		}
 	})
 
-	if getCalls < 3 {
+	if getCalls < 2 {
 		t.Fatalf("expected form fetches for validation, got %d", getCalls)
 	}
 }

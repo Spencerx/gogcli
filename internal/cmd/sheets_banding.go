@@ -167,6 +167,19 @@ func (c *SheetsBandingClearCmd) Run(ctx context.Context, flags *RootFlags) error
 		return usage("--sheet is required with --all")
 	}
 
+	if flags != nil && flags.DryRun {
+		request := map[string]any{
+			"spreadsheet_id":  spreadsheetID,
+			"banded_range_id": c.BandedRangeID,
+			"sheet":           sheetName,
+			"all":             c.All,
+		}
+		if c.BandedRangeID > 0 {
+			request["removed"] = 1
+		}
+		return dryRunAndConfirmDestructive(ctx, flags, "sheets.banding.clear", request, "remove banding")
+	}
+
 	requests := []*sheets.Request{}
 	var removed int
 	if c.BandedRangeID > 0 {

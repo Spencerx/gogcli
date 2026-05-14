@@ -227,11 +227,6 @@ type SheetsTableDeleteCmd struct {
 
 func (c *SheetsTableDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	spreadsheetID := normalizeGoogleID(strings.TrimSpace(c.SpreadsheetID))
 	in := strings.TrimSpace(c.TableID)
 	if spreadsheetID == "" {
@@ -241,6 +236,17 @@ func (c *SheetsTableDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("empty tableId")
 	}
 
+	if dryRunErr := dryRunExit(ctx, flags, "sheets.table.delete", map[string]any{
+		"spreadsheet_id":   spreadsheetID,
+		"table_id_or_name": in,
+	}); dryRunErr != nil {
+		return dryRunErr
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
 	svc, err := newSheetsService(ctx, account)
 	if err != nil {
 		return err
@@ -258,13 +264,6 @@ func (c *SheetsTableDeleteCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usagef("unknown table %q", in)
 	}
 
-	if dryRunErr := dryRunExit(ctx, flags, "sheets.table.delete", map[string]any{
-		"spreadsheet_id": spreadsheetID,
-		"table_id":       table.TableID,
-		"name":           table.Name,
-	}); dryRunErr != nil {
-		return dryRunErr
-	}
 	if err := confirmDestructiveChecked(ctx, flagsWithoutDryRun(flags), "delete table "+table.Name); err != nil {
 		return err
 	}

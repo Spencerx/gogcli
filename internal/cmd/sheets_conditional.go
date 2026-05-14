@@ -184,6 +184,18 @@ func (c *SheetsConditionalClearCmd) Run(ctx context.Context, flags *RootFlags) e
 	if c.All && strings.TrimSpace(c.Index) != "" {
 		return usage("use either --index or --all, not both")
 	}
+	if err := validateConditionalClearIndex(strings.TrimSpace(c.Index)); err != nil {
+		return err
+	}
+
+	if flags != nil && flags.DryRun {
+		return dryRunAndConfirmDestructive(ctx, flags, "sheets.conditional-format.clear", map[string]any{
+			"spreadsheet_id": spreadsheetID,
+			"sheet":          sheetName,
+			"index":          strings.TrimSpace(c.Index),
+			"all":            c.All,
+		}, "remove conditional format rules from "+sheetName)
+	}
 
 	account, err := requireAccount(flags)
 	if err != nil {
@@ -391,6 +403,18 @@ func conditionalDeleteRequests(sheetID int64, count int, indexRaw string, all bo
 		return nil, usagef("--index %d out of range; sheet has %d rules", idx, count)
 	}
 	return []*sheets.Request{conditionalDeleteRequest(sheetID, int64(idx))}, nil
+}
+
+func validateConditionalClearIndex(indexRaw string) error {
+	indexRaw = strings.TrimSpace(indexRaw)
+	if indexRaw == "" {
+		return nil
+	}
+	idx, err := strconv.Atoi(indexRaw)
+	if err != nil || idx < 0 {
+		return usage("--index must be a non-negative integer")
+	}
+	return nil
 }
 
 func conditionalDeleteRequest(sheetID, index int64) *sheets.Request {

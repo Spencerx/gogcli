@@ -38,6 +38,16 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			op:   "drive.rename",
 		},
 		{
+			name: "gmail label rename",
+			args: []string{"gmail", "labels", "rename", "Label_1", "NewLabel"},
+			op:   "gmail.labels.rename",
+		},
+		{
+			name: "gmail label style",
+			args: []string{"gmail", "labels", "style", "Label_1", "--background-color", "#ffffff", "--text-color", "#000000"},
+			op:   "gmail.labels.style",
+		},
+		{
 			name: "meet update",
 			args: []string{"meet", "update", "abc-defg-hij", "--access", "open"},
 			op:   "meet.spaces.patch",
@@ -51,6 +61,31 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			name: "slides create",
 			args: []string{"slides", "create", "SmokeSlides"},
 			op:   "slides.create",
+		},
+		{
+			name: "sheets banding clear all",
+			args: []string{"sheets", "banding", "clear", "sheet123", "--sheet", "Sheet1", "--all"},
+			op:   "sheets.banding.clear",
+		},
+		{
+			name: "sheets conditional clear index",
+			args: []string{"sheets", "conditional-format", "clear", "sheet123", "--sheet", "Sheet1", "--index", "0"},
+			op:   "sheets.conditional-format.clear",
+		},
+		{
+			name: "sheets conditional clear all",
+			args: []string{"sheets", "conditional-format", "clear", "sheet123", "--sheet", "Sheet1", "--all"},
+			op:   "sheets.conditional-format.clear",
+		},
+		{
+			name: "sheets table delete",
+			args: []string{"sheets", "table", "delete", "sheet123", "Tbl"},
+			op:   "sheets.table.delete",
+		},
+		{
+			name: "forms delete question",
+			args: []string{"forms", "delete-question", "form123", "0"},
+			op:   "forms.deleteQuestion",
 		},
 	}
 
@@ -75,6 +110,47 @@ func TestDryRunE2E_MutatingCommandsSkipAuthAndAPI(t *testing.T) {
 			if !payload.DryRun || payload.Op != tc.op {
 				t.Fatalf("unexpected dry-run output: %#v", payload)
 			}
+		})
+	}
+}
+
+func TestDryRunE2E_ValidatesFormsAndSheetsLocalInputs(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "forms add choice requires options before auth",
+			args: []string{"forms", "add-question", "form123", "--title", "Q", "--type", "radio"},
+		},
+		{
+			name: "forms add scale rejects inverted range",
+			args: []string{"forms", "add-question", "form123", "--title", "Q", "--type", "scale", "--scale-low", "5", "--scale-high", "1"},
+		},
+		{
+			name: "forms update requires a field before auth",
+			args: []string{"forms", "update", "form123"},
+		},
+		{
+			name: "forms update validates quiz before dry-run",
+			args: []string{"forms", "update", "form123", "--quiz", "maybe"},
+		},
+		{
+			name: "sheets conditional clear validates index before auth",
+			args: []string{"sheets", "conditional-format", "clear", "sheet123", "--sheet", "Sheet1", "--index", "-1"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{"--json", "--dry-run", "--no-input", "--access-token", "invalid-token"}, tc.args...)
+			_ = captureStdout(t, func() {
+				_ = captureStderr(t, func() {
+					if err := Execute(args); ExitCode(err) == 0 {
+						t.Fatalf("expected validation failure")
+					}
+				})
+			})
 		})
 	}
 }

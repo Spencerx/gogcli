@@ -121,11 +121,6 @@ type GmailLabelsRenameCmd struct {
 
 func (c *GmailLabelsRenameCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
-	}
-
 	oldRaw := strings.TrimSpace(c.Label)
 	if oldRaw == "" {
 		return usage("label is required")
@@ -135,6 +130,17 @@ func (c *GmailLabelsRenameCmd) Run(ctx context.Context, flags *RootFlags) error 
 		return usage("new name is required")
 	}
 
+	if exit := dryRunExit(ctx, flags, "gmail.labels.rename", map[string]string{
+		"label":   oldRaw,
+		"newName": newName,
+	}); exit != nil {
+		return exit
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
 	svc, err := newGmailService(ctx, account)
 	if err != nil {
 		return err
@@ -151,14 +157,6 @@ func (c *GmailLabelsRenameCmd) Run(ctx context.Context, flags *RootFlags) error 
 
 	if validateErr := ensureLabelNameAvailable(svc, newName); validateErr != nil {
 		return validateErr
-	}
-
-	if exit := dryRunExit(ctx, flags, "gmail.labels.rename", map[string]string{
-		"id":      label.Id,
-		"oldName": label.Name,
-		"newName": newName,
-	}); exit != nil {
-		return exit
 	}
 
 	updated, err := svc.Users.Labels.Patch("me", label.Id, &gmail.Label{
@@ -185,11 +183,10 @@ type GmailLabelsStyleCmd struct {
 
 func (c *GmailLabelsStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
-	if err != nil {
-		return err
+	labelRaw := strings.TrimSpace(c.Label)
+	if labelRaw == "" {
+		return usage("label is required")
 	}
-
 	textColor, err := normalizeGmailLabelHexColor(c.TextColor, "--text-color")
 	if err != nil {
 		return err
@@ -208,6 +205,20 @@ func (c *GmailLabelsStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return validateErr
 	}
 
+	if exit := dryRunExit(ctx, flags, "gmail.labels.style", map[string]any{
+		"label":                 labelRaw,
+		"textColor":             textColor,
+		"backgroundColor":       backgroundColor,
+		"labelListVisibility":   c.LabelListVisibility,
+		"messageListVisibility": c.MessageListVisibility,
+	}); exit != nil {
+		return exit
+	}
+
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
 	svc, err := newGmailService(ctx, account)
 	if err != nil {
 		return err
@@ -238,17 +249,6 @@ func (c *GmailLabelsStyleCmd) Run(ctx context.Context, flags *RootFlags) error {
 			color.BackgroundColor = backgroundColor
 		}
 		patch.Color = color
-	}
-
-	if exit := dryRunExit(ctx, flags, "gmail.labels.style", map[string]any{
-		"id":                    label.Id,
-		"name":                  label.Name,
-		"textColor":             textColor,
-		"backgroundColor":       backgroundColor,
-		"labelListVisibility":   c.LabelListVisibility,
-		"messageListVisibility": c.MessageListVisibility,
-	}); exit != nil {
-		return exit
 	}
 
 	updated, err := svc.Users.Labels.Patch("me", label.Id, patch).Context(ctx).Do()
