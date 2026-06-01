@@ -109,6 +109,9 @@ func (c *GmailSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if sigErr := c.validateSignatureOptions(); sigErr != nil {
 		return sigErr
 	}
+	if headerErr := validateComposeHeaderInputs(c.To, c.Cc, c.Bcc, c.ReplyTo, c.Subject, c.From); headerErr != nil {
+		return headerErr
+	}
 
 	attachPaths, err := expandComposeAttachmentPaths(c.Attach)
 	if err != nil {
