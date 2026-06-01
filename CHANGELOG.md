@@ -35,6 +35,7 @@
 - Chat: validate space member emails and `users/...` identifiers before dry-run instead of accepting invalid space setup requests.
 - Contacts: warm the People API contact-search cache, including Google's documented propagation wait, before contact and other-contact searches plus Gmail `--from-contact` resolution so fresh contact changes are visible.
 - Contacts: use an other-contact-safe read mask for `contacts other list` and `contacts other search` so Google does not reject the request.
+- Contacts: return usage exit code 2 for non-positive `contacts list/search --max` values before auth/API setup.
 - Classroom: return empty JSON arrays, not null, for empty course, roster, invitation, guardian, coursework, material, announcement, topic, and submission lists.
 - Classroom: reject unfiltered `classroom invitations list` locally because the API requires `--course` or `--user`.
 - Classroom: report the canonical hyphenated dry-run op for `guardian-invitations create`.

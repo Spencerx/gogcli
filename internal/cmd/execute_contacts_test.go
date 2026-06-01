@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
 )
+
+var errUnexpectedContactsServiceCall = errors.New("unexpected contacts service call")
 
 func TestExecute_ContactsList_JSON(t *testing.T) {
 	origNew := newPeopleContactsService
@@ -78,6 +81,33 @@ func TestExecute_ContactsList_JSON(t *testing.T) {
 	}
 	if parsed.Contacts[0].Birthday != "1815-12-10" {
 		t.Fatalf("unexpected birthday: %#v", parsed.Contacts[0])
+	}
+}
+
+func TestExecute_ContactsInvalidMaxFailsBeforeService(t *testing.T) {
+	origNew := newPeopleContactsService
+	t.Cleanup(func() { newPeopleContactsService = origNew })
+	newPeopleContactsService = func(context.Context, string) (*people.Service, error) {
+		t.Fatalf("expected max validation to fail before creating contacts service")
+		return nil, errUnexpectedContactsServiceCall
+	}
+
+	testCases := [][]string{
+		{"--account", "a@b.com", "contacts", "list", "--max", "0"},
+		{"--account", "a@b.com", "contacts", "list", "--max=-1"},
+		{"--account", "a@b.com", "contacts", "search", "alice", "--max", "0"},
+		{"--account", "a@b.com", "contacts", "search", "alice", "--max=-1"},
+	}
+	for _, args := range testCases {
+		t.Run(strings.Join(args[2:], "_"), func(t *testing.T) {
+			_ = captureStderr(t, func() {
+				err := Execute(args)
+				var exitErr *ExitError
+				if !errors.As(err, &exitErr) || exitErr.Code != 2 || !strings.Contains(err.Error(), "max must be > 0") {
+					t.Fatalf("unexpected err: %v", err)
+				}
+			})
+		})
 	}
 }
 
