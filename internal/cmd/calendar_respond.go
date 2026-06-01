@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"google.golang.org/api/calendar/v3"
@@ -65,7 +64,7 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if len(event.Attendees) == 0 {
-		return errors.New("event has no attendees")
+		return usage("event has no attendees")
 	}
 
 	var selfAttendee *int
@@ -77,11 +76,11 @@ func (c *CalendarRespondCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if selfAttendee == nil {
-		return errors.New("you are not an attendee of this event")
+		return usage("you are not an attendee of this event")
 	}
 
 	if event.Attendees[*selfAttendee].Organizer {
-		return errors.New("cannot respond to your own event (you are the organizer)")
+		return usage("cannot respond to your own event (you are the organizer)")
 	}
 
 	event.Attendees[*selfAttendee].ResponseStatus = status
