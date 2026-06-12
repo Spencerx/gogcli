@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -48,6 +49,12 @@ func executeWithCalendarTestServiceFactory(t *testing.T, args []string, factory 
 	return executeWithTestRuntime(t, args, &app.Runtime{Services: app.Services{
 		Calendar: factory,
 	}})
+}
+
+func newCalendarTestJSONContext(t *testing.T, svc *calendar.Service) (context.Context, *bytes.Buffer) {
+	t.Helper()
+	var output bytes.Buffer
+	return withCalendarTestService(newCmdRuntimeJSONOutputContext(t, &output, io.Discard), svc), &output
 }
 
 func newCalendarOutputContext(t *testing.T, stdout, stderr io.Writer) context.Context {
