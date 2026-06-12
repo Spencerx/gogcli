@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"os"
 	"strings"
 
 	formsapi "google.golang.org/api/forms/v1"
@@ -74,7 +73,7 @@ func (c *FormsWatchCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"created": true,
 			"form_id": formID,
 			"watch":   watch,
@@ -131,7 +130,7 @@ func (c *FormsWatchListCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if watches == nil {
 			watches = []*formsapi.Watch{}
 		}
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"form_id": formID,
 			"watches": watches,
 		})
@@ -190,7 +189,7 @@ func (c *FormsWatchDeleteCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"deleted":  true,
 			"form_id":  formID,
 			"watch_id": watchID,
@@ -243,7 +242,7 @@ func (c *FormsWatchRenewCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"renewed": true,
 			"form_id": formID,
 			"watch":   watch,

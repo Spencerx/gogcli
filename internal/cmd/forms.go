@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	formsapi "google.golang.org/api/forms/v1"
@@ -65,7 +64,7 @@ func (c *FormsGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"form":     form,
 			"edit_url": formEditURL(formID),
 		})
@@ -135,7 +134,7 @@ func (c *FormsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 	formID := strings.TrimSpace(form.FormId)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"created":  true,
 			"form":     form,
 			"edit_url": formEditURL(formID),
@@ -197,7 +196,7 @@ func (c *FormsResponsesListCmd) Run(ctx context.Context, flags *RootFlags) error
 		if responses == nil {
 			responses = []*formsapi.FormResponse{}
 		}
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"form_id":       formID,
 			"responses":     responses,
 			"nextPageToken": resp.NextPageToken,
@@ -248,7 +247,7 @@ func (c *FormsResponseGetCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{
+		return outfmt.WriteJSON(ctx, stdoutWriter(ctx), map[string]any{
 			"response": resp,
 		})
 	}
