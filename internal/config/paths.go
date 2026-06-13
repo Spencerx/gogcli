@@ -157,50 +157,6 @@ func LegacyClientCredentialsPathFor(client string) (string, error) {
 	return layout.LegacyClientCredentialsPathFor(client)
 }
 
-func DriveDownloadsDir() (string, error) {
-	layout, err := currentLayoutFor(PathKindConfig)
-	if err != nil {
-		return "", err
-	}
-
-	return layout.DriveDownloadsDir(), nil
-}
-
-func EnsureDriveDownloadsDir() (string, error) {
-	dir, err := DriveDownloadsDir()
-	if err != nil {
-		return "", err
-	}
-
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("ensure drive downloads dir: %w", err)
-	}
-
-	return dir, nil
-}
-
-func GmailAttachmentsDir() (string, error) {
-	layout, err := currentLayoutFor(PathKindConfig)
-	if err != nil {
-		return "", err
-	}
-
-	return layout.GmailAttachmentsDir(), nil
-}
-
-func EnsureGmailAttachmentsDir() (string, error) {
-	dir, err := GmailAttachmentsDir()
-	if err != nil {
-		return "", err
-	}
-
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("ensure gmail attachments dir: %w", err)
-	}
-
-	return dir, nil
-}
-
 func GmailWatchDir() (string, error) {
 	if !usesXDGDefaults() && !explicitStatePath() && !hasAbsoluteEnv("XDG_STATE_HOME") {
 		return LegacyGmailWatchDir()

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -174,7 +175,15 @@ func (c *PhotosDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		_, err = io.Copy(stdoutWriter(ctx), resp.Body)
 		return err
 	}
-	dest, err := resolvePhotosDownloadDestPath(item, c.Out)
+	defaultDir := ""
+	if strings.TrimSpace(c.Out) == "" {
+		layout, layoutErr := commandLayout(ctx, config.PathKindConfig)
+		if layoutErr != nil {
+			return layoutErr
+		}
+		defaultDir = layout.DriveDownloadsDir()
+	}
+	dest, err := resolvePhotosDownloadDestPath(item, c.Out, defaultDir)
 	if err != nil {
 		return err
 	}
@@ -305,14 +314,14 @@ func photosCreationTime(item *googleapi.PhotosMediaItem) string {
 	return item.MediaMetadata.CreationTime
 }
 
-func resolvePhotosDownloadDestPath(item *googleapi.PhotosMediaItem, outPathFlag string) (string, error) {
+func resolvePhotosDownloadDestPath(item *googleapi.PhotosMediaItem, outPathFlag, defaultDir string) (string, error) {
 	if item == nil {
 		return "", fmt.Errorf("missing media item metadata")
 	}
-	return resolvePhotosDownloadDestPathParts(item.ID, item.Filename, outPathFlag)
+	return resolvePhotosDownloadDestPathParts(item.ID, item.Filename, outPathFlag, defaultDir)
 }
 
-func resolvePhotosDownloadDestPathParts(itemID string, itemFilename string, outPathFlag string) (string, error) {
+func resolvePhotosDownloadDestPathParts(itemID string, itemFilename string, outPathFlag, defaultDir string) (string, error) {
 	filename := strings.TrimSpace(itemFilename)
 	if filename == "" {
 		filename = strings.TrimSpace(itemID)
@@ -333,11 +342,10 @@ func resolvePhotosDownloadDestPathParts(itemID string, itemFilename string, outP
 		destPath = expanded
 	}
 	if destPath == "" {
-		dir, err := config.EnsureDriveDownloadsDir()
-		if err != nil {
-			return "", err
+		if strings.TrimSpace(defaultDir) == "" {
+			return "", errors.New("missing default downloads directory")
 		}
-		return filepath.Join(dir, safeName), nil
+		return filepath.Join(defaultDir, safeName), nil
 	}
 	if st, err := os.Stat(destPath); err == nil && st.IsDir() {
 		return filepath.Join(destPath, safeName), nil

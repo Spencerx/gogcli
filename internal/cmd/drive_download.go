@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/api/drive/v3"
 
+	"github.com/steipete/gogcli/internal/config"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -72,7 +73,15 @@ func (c *DriveDownloadCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return fileFormatErr
 	}
 
-	destPath, err := resolveDriveDownloadDestPath(meta, c.Output.Path)
+	defaultDir := ""
+	if strings.TrimSpace(c.Output.Path) == "" {
+		layout, layoutErr := commandLayout(ctx, config.PathKindConfig)
+		if layoutErr != nil {
+			return layoutErr
+		}
+		defaultDir = layout.DriveDownloadsDir()
+	}
+	destPath, err := resolveDriveDownloadDestPath(meta, c.Output.Path, defaultDir)
 	if err != nil {
 		return err
 	}
