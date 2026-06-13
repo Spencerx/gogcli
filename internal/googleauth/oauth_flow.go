@@ -153,18 +153,6 @@ func manageCredentialsReader(
 	}
 }
 
-func (ms *ManageServer) readCredentials() (config.ClientCredentials, error) {
-	if ms.opts.ReadCredentials != nil {
-		return ms.opts.ReadCredentials(ms.client)
-	}
-
-	if readClientCredentials != nil {
-		return readClientCredentials(ms.client)
-	}
-
-	return config.ClientCredentials{}, errCredentialsReaderRequired
-}
-
 func authorizeServer(ctx context.Context, opts AuthorizeOptions, creds config.ClientCredentials) (string, error) {
 	state, err := randomStateFn()
 	if err != nil {

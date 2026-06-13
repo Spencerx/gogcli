@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,7 +21,8 @@ import (
 var errTestStoreBoom = errors.New("boom")
 
 func TestHandleAccountsPage(t *testing.T) {
-	ms := &ManageServer{csrfToken: "csrf123"}
+	ms := newTestManagerApplication(t, ManagerOptions{}, ManagerDependencies{})
+	ms.csrfToken = "csrf123"
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	ms.handleAccountsPage(rec, req)
@@ -98,27 +98,12 @@ func TestRenderSuccessPageWithDetails_More(t *testing.T) {
 }
 
 func TestManageServerHandleOAuthCallback_ReadCredsError(t *testing.T) {
-	origRead := readClientCredentials
-
-	t.Cleanup(func() { readClientCredentials = origRead })
-
-	readClientCredentials = func(string) (config.ClientCredentials, error) {
-		return config.ClientCredentials{}, errTestStoreBoom
-	}
-
-	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-
-	t.Cleanup(func() { _ = ln.Close() })
-
-	ms := &ManageServer{
-		oauthState:    "state1",
-		oauthVerifier: testCodeVerifier,
-		listener:      ln,
-		store:         &fakeStore{},
-	}
+	ms := newTestManagerApplication(t, ManagerOptions{}, ManagerDependencies{
+		ReadCredentials: func(string) (config.ClientCredentials, error) {
+			return config.ClientCredentials{}, errTestStoreBoom
+		},
+	})
+	ms.addOAuthState("state1", testCodeVerifier)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
@@ -130,28 +115,10 @@ func TestManageServerHandleOAuthCallback_ReadCredsError(t *testing.T) {
 }
 
 func TestManageServerHandleOAuthCallback_ScopesError(t *testing.T) {
-	origRead := readClientCredentials
-
-	t.Cleanup(func() { readClientCredentials = origRead })
-
-	readClientCredentials = func(string) (config.ClientCredentials, error) {
-		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
-	}
-
-	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-
-	t.Cleanup(func() { _ = ln.Close() })
-
-	ms := &ManageServer{
-		oauthState:    "state1",
-		oauthVerifier: testCodeVerifier,
-		listener:      ln,
-		store:         &fakeStore{},
-		opts:          ManageServerOptions{Services: []Service{Service("nope")}},
-	}
+	ms := newTestManagerApplication(t, ManagerOptions{
+		Services: []Service{Service("nope")},
+	}, ManagerDependencies{})
+	ms.addOAuthState("state1", testCodeVerifier)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
@@ -163,40 +130,18 @@ func TestManageServerHandleOAuthCallback_ScopesError(t *testing.T) {
 }
 
 func TestManageServerHandleOAuthCallback_ExchangeError(t *testing.T) {
-	origRead := readClientCredentials
-	origEndpoint := oauthEndpoint
-
-	t.Cleanup(func() {
-		readClientCredentials = origRead
-		oauthEndpoint = origEndpoint
-	})
-
-	readClientCredentials = func(string) (config.ClientCredentials, error) {
-		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
-	}
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "nope", http.StatusInternalServerError)
 	}))
 
 	t.Cleanup(srv.Close)
 
-	oauthEndpoint = oauth2.Endpoint{AuthURL: "http://example.com/auth", TokenURL: srv.URL}
-
-	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-
-	t.Cleanup(func() { _ = ln.Close() })
-
-	ms := &ManageServer{
-		oauthState:    "state1",
-		oauthVerifier: testCodeVerifier,
-		listener:      ln,
-		store:         &fakeStore{},
-		opts:          ManageServerOptions{Services: []Service{ServiceGmail}},
-	}
+	ms := newTestManagerApplication(t, ManagerOptions{
+		Services: []Service{ServiceGmail},
+	}, ManagerDependencies{
+		OAuthEndpoint: oauth2.Endpoint{AuthURL: "http://example.com/auth", TokenURL: srv.URL},
+	})
+	ms.addOAuthState("state1", testCodeVerifier)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
@@ -208,18 +153,6 @@ func TestManageServerHandleOAuthCallback_ExchangeError(t *testing.T) {
 }
 
 func TestManageServerHandleOAuthCallback_MissingRefreshToken(t *testing.T) {
-	origRead := readClientCredentials
-	origEndpoint := oauthEndpoint
-
-	t.Cleanup(func() {
-		readClientCredentials = origRead
-		oauthEndpoint = origEndpoint
-	})
-
-	readClientCredentials = func(string) (config.ClientCredentials, error) {
-		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
-	}
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -231,22 +164,12 @@ func TestManageServerHandleOAuthCallback_MissingRefreshToken(t *testing.T) {
 
 	t.Cleanup(srv.Close)
 
-	oauthEndpoint = oauth2.Endpoint{AuthURL: "http://example.com/auth", TokenURL: srv.URL}
-
-	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-
-	t.Cleanup(func() { _ = ln.Close() })
-
-	ms := &ManageServer{
-		oauthState:    "state1",
-		oauthVerifier: testCodeVerifier,
-		listener:      ln,
-		store:         &fakeStore{},
-		opts:          ManageServerOptions{Services: []Service{ServiceGmail}},
-	}
+	ms := newTestManagerApplication(t, ManagerOptions{
+		Services: []Service{ServiceGmail},
+	}, ManagerDependencies{
+		OAuthEndpoint: oauth2.Endpoint{AuthURL: "http://example.com/auth", TokenURL: srv.URL},
+	})
+	ms.addOAuthState("state1", testCodeVerifier)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
@@ -258,18 +181,6 @@ func TestManageServerHandleOAuthCallback_MissingRefreshToken(t *testing.T) {
 }
 
 func TestManageServerHandleOAuthCallback_FetchEmailError(t *testing.T) {
-	origRead := readClientCredentials
-	origEndpoint := oauthEndpoint
-
-	t.Cleanup(func() {
-		readClientCredentials = origRead
-		oauthEndpoint = origEndpoint
-	})
-
-	readClientCredentials = func(string) (config.ClientCredentials, error) {
-		return config.ClientCredentials{ClientID: "id", ClientSecret: "secret"}, nil
-	}
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -282,25 +193,15 @@ func TestManageServerHandleOAuthCallback_FetchEmailError(t *testing.T) {
 
 	t.Cleanup(srv.Close)
 
-	oauthEndpoint = oauth2.Endpoint{AuthURL: "http://example.com/auth", TokenURL: srv.URL}
-
-	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-
-	t.Cleanup(func() { _ = ln.Close() })
-
-	ms := &ManageServer{
-		oauthState:    "state1",
-		oauthVerifier: testCodeVerifier,
-		listener:      ln,
-		store:         &fakeStore{},
-		fetchIdentity: func(context.Context, *oauth2.Token) (Identity, error) {
+	ms := newTestManagerApplication(t, ManagerOptions{
+		Services: []Service{ServiceGmail},
+	}, ManagerDependencies{
+		FetchIdentity: func(context.Context, *oauth2.Token) (Identity, error) {
 			return Identity{}, errTestStoreBoom
 		},
-		opts: ManageServerOptions{Services: []Service{ServiceGmail}},
-	}
+		OAuthEndpoint: oauth2.Endpoint{AuthURL: "http://example.com/auth", TokenURL: srv.URL},
+	})
+	ms.addOAuthState("state1", testCodeVerifier)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/oauth2/callback?state=state1&code=abc", nil)
