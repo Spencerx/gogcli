@@ -3,12 +3,14 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/outfmt"
 )
 
@@ -23,6 +25,38 @@ func TestAPICallRequiresWriteOptIn(t *testing.T) {
 	err := (&APICallCmd{API: "demo", Version: "v1", Method: "demo.items.create"}).Run(context.Background(), &RootFlags{})
 	if err == nil || !strings.Contains(err.Error(), "--allow-write") {
 		t.Fatalf("error = %v, want write opt-in", err)
+	}
+}
+
+func TestAPICallReadOnlyBlocksWriteBeforeAuth(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"rootUrl":"https://gmail.googleapis.com/","servicePath":"gmail/v1/","resources":{"users":{"methods":{"stop":{"id":"gmail.users.stop","httpMethod":"POST","path":"users/{userId}/stop","parameters":{"userId":{"location":"path","required":true}},"scopes":["scope"]}}}}}`)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GOG_DISCOVERY_BASE_URL", server.URL)
+
+	ctx := googleapi.WithReadOnly(context.Background(), true)
+	err := (&APICallCmd{API: "gmail", Version: "v1", Method: "gmail.users.stop", ParamsJSON: `{"userId":"me"}`, AllowWrite: true}).Run(ctx, &RootFlags{ReadOnly: true, Force: true})
+	if !errors.Is(err, googleapi.ErrReadOnly) {
+		t.Fatalf("error = %v, want ErrReadOnly", err)
+	}
+}
+
+func TestAPICallReadOnlyAllowsQueryPOSTDryRun(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"rootUrl":"https://www.googleapis.com/","servicePath":"calendar/v3/","resources":{"freebusy":{"methods":{"query":{"id":"calendar.freebusy.query","httpMethod":"POST","path":"freeBusy","scopes":["scope"]}}}}}`)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GOG_DISCOVERY_BASE_URL", server.URL)
+
+	var stdout bytes.Buffer
+	ctx := newCmdRuntimeJSONOutputContext(t, &stdout, &bytes.Buffer{})
+	ctx = googleapi.WithReadOnly(ctx, true)
+	err := (&APICallCmd{API: "calendar", Version: "v3", Method: "calendar.freebusy.query"}).Run(ctx, &RootFlags{ReadOnly: true, DryRun: true, NoInput: true})
+	if ExitCode(err) != 0 {
+		t.Fatalf("query POST dry-run exit code = %d: %v", ExitCode(err), err)
 	}
 }
 

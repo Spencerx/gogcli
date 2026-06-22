@@ -11,6 +11,7 @@ import (
 
 	"github.com/steipete/gogcli/internal/authclient"
 	"github.com/steipete/gogcli/internal/config"
+	"github.com/steipete/gogcli/internal/googleapi"
 	"github.com/steipete/gogcli/internal/googleauth"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
@@ -25,7 +26,6 @@ type AuthSetupCmd struct {
 	CreateProject bool   `name:"create-project" help:"Create --gcloud-project with gcloud (requires confirmation)"`
 	EnableAPIs    bool   `name:"enable-apis" help:"Enable selected Google APIs with gcloud"`
 	Login         bool   `name:"login" help:"Run browser OAuth after project/client setup"`
-	Readonly      bool   `name:"readonly" help:"Use read-only OAuth scopes when --login runs"`
 	ForceConsent  bool   `name:"force-consent" help:"Force OAuth consent when --login runs"`
 	OpenConsole   bool   `name:"open-console" help:"Open the OAuth client page for the selected project"`
 }
@@ -43,6 +43,7 @@ type authSetupResult struct {
 }
 
 func (c *AuthSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
+	readonly := readOnlyEnabled(flags)
 	services, err := parseAuthServices(c.ServicesCSV)
 	if err != nil {
 		return err
@@ -77,6 +78,9 @@ func (c *AuthSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if c.OpenConsole && project == "" {
 		return usage("--open-console requires --gcloud-project or an active gcloud project")
 	}
+	if readonly && (c.CreateProject || c.EnableAPIs) && (flags == nil || !flags.DryRun) {
+		return fmt.Errorf("%w: auth setup project/API mutations are disabled", googleapi.ErrReadOnly)
+	}
 	if (c.CreateProject || c.EnableAPIs) && !gcloudAvailable && (flags == nil || !flags.DryRun) {
 		return usage("gcloud is required for --create-project or --enable-apis; install it or omit those flags for manual guidance")
 	}
@@ -99,7 +103,7 @@ func (c *AuthSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		"enable_apis":      c.EnableAPIs,
 		"credentials_file": strings.TrimSpace(c.Credentials),
 		"login_email":      strings.TrimSpace(c.Email),
-		"readonly":         c.Readonly,
+		"readonly":         readonly,
 		"force_consent":    c.ForceConsent,
 		"open_console":     c.OpenConsole,
 	}
@@ -152,12 +156,11 @@ func (c *AuthSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		}
 	}
 
-	result.NextSteps = authSetupNextSteps(c, result, gcloudAvailable, authclient.ClientOverrideFromContext(ctx))
+	result.NextSteps = authSetupNextSteps(c, result, gcloudAvailable, authclient.ClientOverrideFromContext(ctx), readonly)
 	if c.Login {
 		return (&AuthAddCmd{
 			Email:        strings.TrimSpace(c.Email),
 			ServicesCSV:  c.ServicesCSV,
-			Readonly:     c.Readonly,
 			ForceConsent: c.ForceConsent,
 		}).Run(ctx, flags)
 	}
@@ -204,7 +207,7 @@ func authSetupClient(ctx context.Context, email string) (string, error) {
 	return normalizeClientForFlag(override)
 }
 
-func authSetupNextSteps(c *AuthSetupCmd, result authSetupResult, gcloudAvailable bool, clientOverride string) []string {
+func authSetupNextSteps(c *AuthSetupCmd, result authSetupResult, gcloudAvailable bool, clientOverride string, readonly bool) []string {
 	steps := make([]string, 0, 6)
 	gogCommand := "gog"
 	if client := strings.TrimSpace(clientOverride); client != "" {
@@ -226,10 +229,14 @@ func authSetupNextSteps(c *AuthSetupCmd, result authSetupResult, gcloudAvailable
 	if !result.CredentialsSaved {
 		steps = append(steps, "Store the download with `"+gogCommand+" auth credentials /path/to/client_secret.json`")
 	}
+	authCommand := gogCommand
+	if readonly {
+		authCommand += " --readonly"
+	}
 	if strings.TrimSpace(c.Email) != "" {
-		steps = append(steps, fmt.Sprintf("Authorize with `%s auth add %s --services %s`", gogCommand, strings.TrimSpace(c.Email), strings.Join(result.Services, ",")))
+		steps = append(steps, fmt.Sprintf("Authorize with `%s auth add %s --services %s`", authCommand, strings.TrimSpace(c.Email), strings.Join(result.Services, ",")))
 	} else {
-		steps = append(steps, "Authorize with `"+gogCommand+" auth add you@example.com --services "+strings.Join(result.Services, ",")+"`")
+		steps = append(steps, "Authorize with `"+authCommand+" auth add you@example.com --services "+strings.Join(result.Services, ",")+"`")
 	}
 	steps = append(steps, "Verify with `gog auth doctor --check`")
 	return steps
@@ -279,8 +286,9 @@ func authSetupGcloudValue(ctx context.Context, key string) (string, error) {
 	return value, nil
 }
 
+//nolint:gosec // Fixed gcloud binary; arguments are validated or generated.
 func authSetupRunGcloud(ctx context.Context, args ...string) (string, error) {
-	command := exec.CommandContext(ctx, authSetupGcloudBinary(), args...) //nolint:gosec // fixed gcloud binary; arguments are validated or generated
+	command := exec.CommandContext(ctx, authSetupGcloudBinary(), args...)
 	command.Env = append(os.Environ(), "CLOUDSDK_CORE_DISABLE_PROMPTS=1")
 	output, err := command.CombinedOutput()
 	if err != nil {
